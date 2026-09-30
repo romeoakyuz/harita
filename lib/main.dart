@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -253,7 +254,7 @@ class _HaritaEkraniState extends State<HaritaEkrani> {
             CameraFit.bounds(
               bounds: bounds,
               padding: const EdgeInsets.all(80.0),
-              maxZoom: 17.0, // Kısa rotalarda haritanın kaybolmasını önleyen sınır
+              maxZoom: 17.0,
             ),
           );
         }
@@ -279,6 +280,10 @@ class _HaritaEkraniState extends State<HaritaEkrani> {
 
     LocationPermission permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+
+    if (permission == LocationPermission.whileInUse) {
       permission = await Geolocator.requestPermission();
     }
 
@@ -333,11 +338,29 @@ class _HaritaEkraniState extends State<HaritaEkrani> {
         }
       });
 
-      positionStream = Geolocator.getPositionStream(
-        locationSettings: const LocationSettings(
+      // Xiaomi Arka Plan ve Bildirim Ayarlı Konum Dinleyicisi
+      late LocationSettings locationSettings;
+      if (defaultTargetPlatform == TargetPlatform.android) {
+        locationSettings = AndroidSettings(
           accuracy: LocationAccuracy.high,
           distanceFilter: 3,
-        ),
+          forceLocationManager: true,
+          intervalDuration: const Duration(seconds: 2),
+          foregroundNotificationConfig: ForegroundNotificationConfig(
+            notificationTitle: "🔴 KAYIT YAPILIYOR - Av Rotası",
+            notificationText: "Mesafe: ${(totalDistanceMeters / 1000).toStringAsFixed(2)} km | Arka planda aktif",
+            enableWakeLock: true,
+          ),
+        );
+      } else {
+        locationSettings = const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          distanceFilter: 3,
+        );
+      }
+
+      positionStream = Geolocator.getPositionStream(
+        locationSettings: locationSettings,
       ).listen((Position position) {
         LatLng newPoint = LatLng(position.latitude, position.longitude);
 
@@ -753,14 +776,24 @@ class _HaritaEkraniState extends State<HaritaEkrani> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text(
-                              isRecording ? '● Rota Kaydediliyor...' : '○ Kayıt Bekliyor',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: isRecording ? Colors.red : Colors.grey.shade700,
-                              ),
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.fiber_manual_record,
+                                  size: 14,
+                                  color: isRecording ? Colors.red : Colors.grey,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  isRecording ? '🔴 KAYIT YAPILIYOR' : '○ Kayıt Bekliyor',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: isRecording ? Colors.red.shade800 : Colors.grey.shade700,
+                                  ),
+                                ),
+                              ],
                             ),
-                            const SizedBox(height: 4),
+                            const SizedBox(height: 6),
                             Text(
                               isRecording
                                   ? 'Mesafe: ${(totalDistanceMeters / 1000).toStringAsFixed(2)} km (${totalDistanceMeters.toStringAsFixed(0)} m)\nSüre: ${formatDuration(currentElapsedSeconds)}'
