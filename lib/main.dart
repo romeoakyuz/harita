@@ -132,7 +132,7 @@ class _AnaSayfaState extends State<AnaSayfa> {
   void _onRouteSelectedForView(SavedRoute route) {
     setState(() {
       viewingRoute = route;
-      focusTargetLocation = route.points.isNotEmpty ? route.points.first : null;
+      focusTargetLocation = null;
       _selectedIndex = 0;
     });
   }
@@ -205,12 +205,13 @@ class HaritaEkrani extends StatefulWidget {
 }
 
 class _HaritaEkraniState extends State<HaritaEkrani> {
-  bool isSatellite = true; // Varsayılan UYDU Görünümü
+  bool isSatellite = true; // Varsayılan Uydu Görünümü
   bool isRecording = false;
   List<LatLng> routePoints = [];
   List<SavedMarker> savedMarkers = [];
   double totalDistanceMeters = 0;
   DateTime? startTime;
+  Timer? recordingTimer;
   StreamSubscription<Position>? positionStream;
   final MapController mapController = MapController();
   LatLng currentLocation = const LatLng(39.92077, 32.85411);
@@ -224,14 +225,35 @@ class _HaritaEkraniState extends State<HaritaEkrani> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _adjustCamera();
+  }
+
+  @override
   void didUpdateWidget(covariant HaritaEkrani oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.focusTargetLocation != null &&
+    if (widget.viewingRoute != oldWidget.viewingRoute ||
         widget.focusTargetLocation != oldWidget.focusTargetLocation) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        mapController.move(widget.focusTargetLocation!, 16.0);
-      });
+      _adjustCamera();
     }
+  }
+
+  void _adjustCamera() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (widget.viewingRoute != null && widget.viewingRoute!.points.isNotEmpty) {
+        // Tüm rotayı ekrana sığdır
+        final bounds = LatLngBounds.fromPoints(widget.viewingRoute!.points);
+        mapController.fitCamera(
+          CameraFit.bounds(
+            bounds: bounds,
+            padding: const EdgeInsets.all(50.0),
+          ),
+        );
+      } else if (widget.focusTargetLocation != null) {
+        mapController.move(widget.focusTargetLocation!, 16.0);
+      }
+    });
   }
 
   Future<void> _loadSavedMarkers() async {
@@ -261,7 +283,7 @@ class _HaritaEkraniState extends State<HaritaEkrani> {
         setState(() {
           currentLocation = LatLng(pos.latitude, pos.longitude);
         });
-        if (widget.focusTargetLocation == null) {
+        if (widget.focusTargetLocation == null && widget.viewingRoute == null) {
           mapController.move(currentLocation, 16.0);
         }
       }
@@ -271,6 +293,8 @@ class _HaritaEkraniState extends State<HaritaEkrani> {
   void toggleRecording() {
     if (isRecording) {
       positionStream?.cancel();
+      recordingTimer?.cancel();
+
       final duration = startTime != null ? DateTime.now().difference(startTime!).inSeconds : 0;
       final pointsToSave = List<LatLng>.from(routePoints);
       final distanceToSave = totalDistanceMeters;
@@ -292,6 +316,13 @@ class _HaritaEkraniState extends State<HaritaEkrani> {
         routePoints.clear();
         totalDistanceMeters = 0;
         startTime = DateTime.now();
+      });
+
+      // Canlı zaman sayacı
+      recordingTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+        if (mounted && isRecording) {
+          setState(() {});
+        }
       });
 
       positionStream = Geolocator.getPositionStream(
@@ -355,7 +386,7 @@ class _HaritaEkraniState extends State<HaritaEkrani> {
                 final list = prefs.getStringList('saved_markers') ?? [];
                 list.add(jsonEncode(marker.toJson()));
                 await prefs.setStringList('saved_markers', list);
-                
+
                 await _loadSavedMarkers();
                 if (mounted) {
                   Navigator.pop(context);
@@ -500,6 +531,7 @@ class _HaritaEkraniState extends State<HaritaEkrani> {
   @override
   void dispose() {
     positionStream?.cancel();
+    recordingTimer?.cancel();
     super.dispose();
   }
 
@@ -511,7 +543,7 @@ class _HaritaEkraniState extends State<HaritaEkrani> {
 
     final List<Marker> allMarkers = [];
 
-    // Mevcut Konum Noktası
+    // Mevcut Konum
     allMarkers.add(
       Marker(
         point: currentLocation,
@@ -528,7 +560,7 @@ class _HaritaEkraniState extends State<HaritaEkrani> {
       ),
     );
 
-    // Kayıtlı İşaretler (Pinler)
+    // Kayıtlı Pin İşaretleri
     for (var pin in savedMarkers) {
       allMarkers.add(_buildSavedPinMarker(pin));
     }
@@ -554,6 +586,10 @@ class _HaritaEkraniState extends State<HaritaEkrani> {
         );
       }
     }
+
+    final currentElapsedSeconds = startTime != null
+        ? DateTime.now().difference(startTime!).inSeconds
+        : 0;
 
     return Scaffold(
       appBar: AppBar(
@@ -592,7 +628,7 @@ class _HaritaEkraniState extends State<HaritaEkrani> {
                   Polyline(
                     points: activeRoutePoints,
                     strokeWidth: 5.0,
-                    color: Colors.redAccent, // Her zaman KIRMIZI ÇİZGİ
+                    color: Colors.redAccent,
                   ),
                 ],
               ),
@@ -600,7 +636,7 @@ class _HaritaEkraniState extends State<HaritaEkrani> {
             ],
           ),
 
-          // Kayıtlı Rota İnceleme Bilgi Kutusu
+          // Kayıtlı Rota Detay Kartı
           if (widget.viewingRoute != null)
             Positioned(
               top: 16,
@@ -668,35 +704,40 @@ class _HaritaEkraniState extends State<HaritaEkrani> {
               ),
             )
           else
+            // Canlı Kayıt / Durum Kartı
             Positioned(
               top: 16,
               left: 16,
               right: 16,
               child: Card(
-                color: Colors.white.withOpacity(0.9),
+                color: Colors.white.withOpacity(0.92),
                 elevation: 4,
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            isRecording ? '● Rota Kaydediliyor...' : '○ Kayıt Bekliyor',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: isRecording ? Colors.red : Colors.grey.shade700,
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              isRecording ? '● Rota Kaydediliyor...' : '○ Kayıt Bekliyor',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: isRecording ? Colors.red : Colors.grey.shade700,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Mesafe: ${(totalDistanceMeters / 1000).toStringAsFixed(2)} km (${totalDistanceMeters.toStringAsFixed(0)} m)',
-                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
-                          ),
-                        ],
+                            const SizedBox(height: 4),
+                            Text(
+                              isRecording
+                                  ? 'Mesafe: ${(totalDistanceMeters / 1000).toStringAsFixed(2)} km (${totalDistanceMeters.toStringAsFixed(0)} m)\nSüre: ${formatDuration(currentElapsedSeconds)}'
+                                  : 'Mesafe: ${(totalDistanceMeters / 1000).toStringAsFixed(2)} km (${totalDistanceMeters.toStringAsFixed(0)} m)',
+                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                            ),
+                          ],
+                        ),
                       ),
                       IconButton(
                         icon: const Icon(Icons.my_location, color: Colors.green),
