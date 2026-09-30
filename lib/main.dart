@@ -12,6 +12,20 @@ void main() {
   runApp(const AvHaritasiApp());
 }
 
+String formatDuration(int seconds) {
+  final duration = Duration(seconds: seconds);
+  final hours = duration.inHours;
+  final minutes = duration.inMinutes.remainder(60);
+  final secs = duration.inSeconds.remainder(60);
+  if (hours > 0) {
+    return '$hours sa $minutes dk $secs sn';
+  } else if (minutes > 0) {
+    return '$minutes dk $secs sn';
+  } else {
+    return '$secs sn';
+  }
+}
+
 class SavedRoute {
   final String id;
   final String name;
@@ -52,6 +66,40 @@ class SavedRoute {
   }
 }
 
+class SavedMarker {
+  final String id;
+  final String name;
+  final String dateStr;
+  final double latitude;
+  final double longitude;
+
+  SavedMarker({
+    required this.id,
+    required this.name,
+    required this.dateStr,
+    required this.latitude,
+    required this.longitude,
+  });
+
+  LatLng get position => LatLng(latitude, longitude);
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'dateStr': dateStr,
+        'latitude': latitude,
+        'longitude': longitude,
+      };
+
+  factory SavedMarker.fromJson(Map<String, dynamic> json) => SavedMarker(
+        id: json['id'],
+        name: json['name'],
+        dateStr: json['dateStr'],
+        latitude: (json['latitude'] as num).toDouble(),
+        longitude: (json['longitude'] as num).toDouble(),
+      );
+}
+
 class AvHaritasiApp extends StatelessWidget {
   const AvHaritasiApp({super.key});
 
@@ -79,11 +127,20 @@ class AnaSayfa extends StatefulWidget {
 class _AnaSayfaState extends State<AnaSayfa> {
   int _selectedIndex = 0;
   SavedRoute? viewingRoute;
+  LatLng? focusTargetLocation;
 
   void _onRouteSelectedForView(SavedRoute route) {
     setState(() {
       viewingRoute = route;
-      _selectedIndex = 0; // Harita sekmesine geç
+      focusTargetLocation = route.points.isNotEmpty ? route.points.first : null;
+      _selectedIndex = 0;
+    });
+  }
+
+  void _onMarkerSelectedForView(SavedMarker marker) {
+    setState(() {
+      focusTargetLocation = marker.position;
+      _selectedIndex = 0;
     });
   }
 
@@ -92,6 +149,7 @@ class _AnaSayfaState extends State<AnaSayfa> {
     final pages = [
       HaritaEkrani(
         viewingRoute: viewingRoute,
+        focusTargetLocation: focusTargetLocation,
         onClearViewingRoute: () {
           setState(() {
             viewingRoute = null;
@@ -100,6 +158,7 @@ class _AnaSayfaState extends State<AnaSayfa> {
       ),
       AyarlarEkrani(
         onSelectRoute: _onRouteSelectedForView,
+        onSelectMarker: _onMarkerSelectedForView,
       ),
     ];
 
@@ -131,11 +190,13 @@ class _AnaSayfaState extends State<AnaSayfa> {
 
 class HaritaEkrani extends StatefulWidget {
   final SavedRoute? viewingRoute;
+  final LatLng? focusTargetLocation;
   final VoidCallback onClearViewingRoute;
 
   const HaritaEkrani({
     super.key,
     this.viewingRoute,
+    this.focusTargetLocation,
     required this.onClearViewingRoute,
   });
 
@@ -144,9 +205,10 @@ class HaritaEkrani extends StatefulWidget {
 }
 
 class _HaritaEkraniState extends State<HaritaEkrani> {
-  bool isSatellite = true; // Varsayılan UYDU GÖRÜNÜMÜ
+  bool isSatellite = true; // Varsayılan UYDU Görünümü
   bool isRecording = false;
   List<LatLng> routePoints = [];
+  List<SavedMarker> savedMarkers = [];
   double totalDistanceMeters = 0;
   DateTime? startTime;
   StreamSubscription<Position>? positionStream;
@@ -158,17 +220,27 @@ class _HaritaEkraniState extends State<HaritaEkrani> {
   void initState() {
     super.initState();
     _checkPermissions();
+    _loadSavedMarkers();
   }
 
   @override
   void didUpdateWidget(covariant HaritaEkrani oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.viewingRoute != null && widget.viewingRoute != oldWidget.viewingRoute) {
-      if (widget.viewingRoute!.points.isNotEmpty) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          mapController.move(widget.viewingRoute!.points.first, 15.0);
-        });
-      }
+    if (widget.focusTargetLocation != null &&
+        widget.focusTargetLocation != oldWidget.focusTargetLocation) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        mapController.move(widget.focusTargetLocation!, 16.0);
+      });
+    }
+  }
+
+  Future<void> _loadSavedMarkers() async {
+    final prefs = await SharedPreferences.getInstance();
+    final List<String> list = prefs.getStringList('saved_markers') ?? [];
+    if (mounted) {
+      setState(() {
+        savedMarkers = list.map((item) => SavedMarker.fromJson(jsonDecode(item))).toList();
+      });
     }
   }
 
@@ -189,7 +261,9 @@ class _HaritaEkraniState extends State<HaritaEkrani> {
         setState(() {
           currentLocation = LatLng(pos.latitude, pos.longitude);
         });
-        mapController.move(currentLocation, 16.0);
+        if (widget.focusTargetLocation == null) {
+          mapController.move(currentLocation, 16.0);
+        }
       }
     }
   }
@@ -246,6 +320,58 @@ class _HaritaEkraniState extends State<HaritaEkrani> {
     }
   }
 
+  Future<void> _showAddMarkerDialog() async {
+    final now = DateTime.now();
+    final defaultName = 'İşaret - ${DateFormat('dd.MM.yyyy HH:mm').format(now)}';
+    final nameController = TextEditingController(text: defaultName);
+
+    return showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Bulunduğun Yeri İşaretle'),
+          content: TextField(
+            controller: nameController,
+            decoration: const InputDecoration(
+              labelText: 'İşaret Adı (Örn: Av İzi, Barınak)',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('İptal'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final marker = SavedMarker(
+                  id: now.millisecondsSinceEpoch.toString(),
+                  name: nameController.text.trim().isEmpty ? defaultName : nameController.text,
+                  dateStr: DateFormat('dd.MM.yyyy HH:mm').format(now),
+                  latitude: currentLocation.latitude,
+                  longitude: currentLocation.longitude,
+                );
+                final prefs = await SharedPreferences.getInstance();
+                final list = prefs.getStringList('saved_markers') ?? [];
+                list.add(jsonEncode(marker.toJson()));
+                await prefs.setStringList('saved_markers', list);
+                
+                await _loadSavedMarkers();
+                if (mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Konum başarıyla işaretlendi!')),
+                  );
+                }
+              },
+              child: const Text('Kaydet'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Future<void> _showSaveDialog(List<LatLng> points, double distance, int duration) async {
     final now = DateTime.now();
     final defaultName = 'Av Rotası - ${DateFormat('dd.MM.yyyy HH:mm').format(now)}';
@@ -262,6 +388,7 @@ class _HaritaEkraniState extends State<HaritaEkrani> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('Mesafe: ${(distance / 1000).toStringAsFixed(2)} km'),
+              Text('Süre: ${formatDuration(duration)}'),
               const SizedBox(height: 12),
               TextField(
                 controller: nameController,
@@ -287,7 +414,11 @@ class _HaritaEkraniState extends State<HaritaEkrani> {
                   durationSeconds: duration,
                   points: points,
                 );
-                await _saveRouteToStorage(route);
+                final prefs = await SharedPreferences.getInstance();
+                final List<String> list = prefs.getStringList('saved_routes') ?? [];
+                list.add(jsonEncode(route.toJson()));
+                await prefs.setStringList('saved_routes', list);
+
                 if (mounted) {
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -303,11 +434,67 @@ class _HaritaEkraniState extends State<HaritaEkrani> {
     );
   }
 
-  Future<void> _saveRouteToStorage(SavedRoute route) async {
-    final prefs = await SharedPreferences.getInstance();
-    final List<String> list = prefs.getStringList('saved_routes') ?? [];
-    list.add(jsonEncode(route.toJson()));
-    await prefs.setStringList('saved_routes', list);
+  Marker _buildFlagMarker(LatLng point, String label, Color color, IconData icon) {
+    return Marker(
+      point: point,
+      width: 90,
+      height: 65,
+      alignment: Alignment.topCenter,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.85),
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: color, width: 1.5),
+            ),
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          Icon(icon, color: color, size: 30),
+        ],
+      ),
+    );
+  }
+
+  Marker _buildSavedPinMarker(SavedMarker pin) {
+    return Marker(
+      point: pin.position,
+      width: 100,
+      height: 60,
+      alignment: Alignment.topCenter,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+            decoration: BoxDecoration(
+              color: Colors.orange.shade900.withOpacity(0.9),
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: Colors.white, width: 1),
+            ),
+            child: Text(
+              pin.name,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 9,
+                fontWeight: FontWeight.bold,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const Icon(Icons.location_on, color: Colors.orangeAccent, size: 28),
+        ],
+      ),
+    );
   }
 
   @override
@@ -318,9 +505,55 @@ class _HaritaEkraniState extends State<HaritaEkrani> {
 
   @override
   Widget build(BuildContext context) {
-    final activeRouteToShow = widget.viewingRoute != null
+    final activeRoutePoints = widget.viewingRoute != null
         ? widget.viewingRoute!.points
         : routePoints;
+
+    final List<Marker> allMarkers = [];
+
+    // Mevcut Konum Noktası
+    allMarkers.add(
+      Marker(
+        point: currentLocation,
+        width: 24,
+        height: 24,
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.blueAccent,
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white, width: 3),
+            boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 6)],
+          ),
+        ),
+      ),
+    );
+
+    // Kayıtlı İşaretler (Pinler)
+    for (var pin in savedMarkers) {
+      allMarkers.add(_buildSavedPinMarker(pin));
+    }
+
+    // Başlangıç ve Bitiş Bayrakları
+    if (activeRoutePoints.isNotEmpty) {
+      allMarkers.add(
+        _buildFlagMarker(
+          activeRoutePoints.first,
+          'Başlangıç',
+          Colors.greenAccent,
+          Icons.flag,
+        ),
+      );
+      if (activeRoutePoints.length > 1) {
+        allMarkers.add(
+          _buildFlagMarker(
+            activeRoutePoints.last,
+            'Bitiş',
+            Colors.redAccent,
+            Icons.sports_score,
+          ),
+        );
+      }
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -357,57 +590,78 @@ class _HaritaEkraniState extends State<HaritaEkrani> {
               PolylineLayer(
                 polylines: [
                   Polyline(
-                    points: activeRouteToShow,
+                    points: activeRoutePoints,
                     strokeWidth: 5.0,
-                    color: widget.viewingRoute != null ? Colors.blue : Colors.redAccent,
+                    color: Colors.redAccent, // Her zaman KIRMIZI ÇİZGİ
                   ),
                 ],
               ),
-              MarkerLayer(
-                markers: [
-                  Marker(
-                    point: currentLocation,
-                    width: 24,
-                    height: 24,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.blueAccent,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 3),
-                        boxShadow: const [
-                          BoxShadow(color: Colors.black26, blurRadius: 6),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+              MarkerLayer(markers: allMarkers),
             ],
           ),
+
+          // Kayıtlı Rota İnceleme Bilgi Kutusu
           if (widget.viewingRoute != null)
             Positioned(
               top: 16,
               left: 16,
               right: 16,
               child: Card(
-                color: Colors.blue.shade900,
+                color: Colors.black.withOpacity(0.85),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: const BorderSide(color: Colors.redAccent, width: 1.5),
+                ),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  child: Row(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.route, color: Colors.white),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Görüntülenen: ${widget.viewingRoute!.name}',
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              widget.viewingRoute!.name,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close, color: Colors.white70),
+                            onPressed: widget.onClearViewingRoute,
+                            constraints: const BoxConstraints(),
+                            padding: EdgeInsets.zero,
+                          ),
+                        ],
                       ),
-                      IconButton(
-                        icon: const Icon(Icons.close, color: Colors.white),
-                        onPressed: widget.onClearViewingRoute,
-                      )
+                      const Divider(color: Colors.grey, height: 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            '📅 ${widget.viewingRoute!.dateStr}',
+                            style: const TextStyle(color: Colors.white70, fontSize: 12),
+                          ),
+                          Text(
+                            '⏱️ ${formatDuration(widget.viewingRoute!.durationSeconds)}',
+                            style: const TextStyle(color: Colors.white70, fontSize: 12),
+                          ),
+                          Text(
+                            '📏 ${(widget.viewingRoute!.distanceMeters / 1000).toStringAsFixed(2)} km',
+                            style: const TextStyle(
+                              color: Colors.greenAccent,
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
@@ -456,15 +710,30 @@ class _HaritaEkraniState extends State<HaritaEkrani> {
             ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: toggleRecording,
-        backgroundColor: isRecording ? Colors.red.shade700 : Colors.green.shade700,
-        foregroundColor: Colors.white,
-        icon: Icon(isRecording ? Icons.stop : Icons.play_arrow),
-        label: Text(
-          isRecording ? 'Kaydı Durdur & Kaydet' : 'Rotayı Başlat',
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-        ),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FloatingActionButton.extended(
+            heroTag: 'btnMarker',
+            onPressed: _showAddMarkerDialog,
+            backgroundColor: Colors.orange.shade800,
+            foregroundColor: Colors.white,
+            icon: const Icon(Icons.add_location_alt),
+            label: const Text('Konumu İşaretle'),
+          ),
+          const SizedBox(height: 12),
+          FloatingActionButton.extended(
+            heroTag: 'btnRoute',
+            onPressed: toggleRecording,
+            backgroundColor: isRecording ? Colors.red.shade700 : Colors.green.shade700,
+            foregroundColor: Colors.white,
+            icon: Icon(isRecording ? Icons.stop : Icons.play_arrow),
+            label: Text(
+              isRecording ? 'Kaydı Durdur & Kaydet' : 'Rotayı Başlat',
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
@@ -473,8 +742,13 @@ class _HaritaEkraniState extends State<HaritaEkrani> {
 
 class AyarlarEkrani extends StatelessWidget {
   final Function(SavedRoute) onSelectRoute;
+  final Function(SavedMarker) onSelectMarker;
 
-  const AyarlarEkrani({super.key, required this.onSelectRoute});
+  const AyarlarEkrani({
+    super.key,
+    required this.onSelectRoute,
+    required this.onSelectMarker,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -497,6 +771,21 @@ class AyarlarEkrani extends StatelessWidget {
                 context,
                 MaterialPageRoute(
                   builder: (context) => RotalarimEkrani(onSelectRoute: onSelectRoute),
+                ),
+              );
+            },
+          ),
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.push_pin, color: Colors.orange),
+            title: const Text('İşaretlerim', style: TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: const Text('Kaydedilmiş özel konum ve pin işaretleri'),
+            trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => IsaretlerimEkrani(onSelectMarker: onSelectMarker),
                 ),
               );
             },
@@ -592,7 +881,7 @@ class _RotalarimEkraniState extends State<RotalarimEkrani> {
                     ),
                     title: Text(route.name, style: const TextStyle(fontWeight: FontWeight.bold)),
                     subtitle: Text(
-                      'Tarih: ${route.dateStr}\nMesafe: ${(route.distanceMeters / 1000).toStringAsFixed(2)} km',
+                      'Tarih: ${route.dateStr}\nSüre: ${formatDuration(route.durationSeconds)} | Mesafe: ${(route.distanceMeters / 1000).toStringAsFixed(2)} km',
                     ),
                     isThreeLine: true,
                     trailing: Row(
@@ -610,6 +899,102 @@ class _RotalarimEkraniState extends State<RotalarimEkrani> {
                           icon: const Icon(Icons.delete, color: Colors.red),
                           tooltip: 'Sil',
                           onPressed: () => _deleteRoute(index),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+    );
+  }
+}
+
+class IsaretlerimEkrani extends StatefulWidget {
+  final Function(SavedMarker) onSelectMarker;
+
+  const IsaretlerimEkrani({super.key, required this.onSelectMarker});
+
+  @override
+  State<IsaretlerimEkrani> createState() => _IsaretlerimEkraniState();
+}
+
+class _IsaretlerimEkraniState extends State<IsaretlerimEkrani> {
+  List<SavedMarker> savedMarkers = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMarkers();
+  }
+
+  Future<void> _loadMarkers() async {
+    final prefs = await SharedPreferences.getInstance();
+    final List<String> list = prefs.getStringList('saved_markers') ?? [];
+    setState(() {
+      savedMarkers = list
+          .map((item) => SavedMarker.fromJson(jsonDecode(item)))
+          .toList()
+          .reversed
+          .toList();
+    });
+  }
+
+  Future<void> _deleteMarker(int index) async {
+    final prefs = await SharedPreferences.getInstance();
+    final List<String> list = prefs.getStringList('saved_markers') ?? [];
+    int realIndex = list.length - 1 - index;
+    if (realIndex >= 0 && realIndex < list.length) {
+      list.removeAt(realIndex);
+      await prefs.setStringList('saved_markers', list);
+      _loadMarkers();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('İşaretlerim'),
+        backgroundColor: Colors.green.shade800,
+        foregroundColor: Colors.white,
+      ),
+      body: savedMarkers.isEmpty
+          ? const Center(
+              child: Text(
+                'Henüz kaydedilmiş bir işaret bulunmuyor.',
+                style: TextStyle(color: Colors.grey, fontSize: 16),
+              ),
+            )
+          : ListView.builder(
+              itemCount: savedMarkers.length,
+              itemBuilder: (context, index) {
+                final marker = savedMarkers[index];
+                return Card(
+                  margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  child: ListTile(
+                    leading: const CircleAvatar(
+                      backgroundColor: Colors.orange,
+                      child: Icon(Icons.location_on, color: Colors.white),
+                    ),
+                    title: Text(marker.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                    subtitle: Text('Tarih: ${marker.dateStr}\nKonum: ${marker.latitude.toStringAsFixed(5)}, ${marker.longitude.toStringAsFixed(5)}'),
+                    isThreeLine: true,
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.center_focus_strong, color: Colors.blue),
+                          tooltip: 'Konuma Odaklan',
+                          onPressed: () {
+                            widget.onSelectMarker(marker);
+                            Navigator.pop(context);
+                          },
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete, color: Colors.red),
+                          tooltip: 'Sil',
+                          onPressed: () => _deleteMarker(index),
                         ),
                       ],
                     ),
