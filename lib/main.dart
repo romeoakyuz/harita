@@ -206,7 +206,7 @@ class HaritaEkrani extends StatefulWidget {
 }
 
 class _HaritaEkraniState extends State<HaritaEkrani> {
-  bool isSatellite = true; // Varsayılan Uydu Görünümü
+  bool isSatellite = true;
   bool isRecording = false;
   List<LatLng> routePoints = [];
   List<SavedMarker> savedMarkers = [];
@@ -216,8 +216,8 @@ class _HaritaEkraniState extends State<HaritaEkrani> {
   StreamSubscription<Position>? positionStream;
   final MapController mapController = MapController();
   LatLng currentLocation = const LatLng(39.92077, 32.85411);
-  double currentSpeedMps = 0.0; // m/s cinsinden hız
-  double currentHeadingDegree = 0.0; // Derece cinsinden pusula/yön bilgisi
+  double currentSpeedMps = 0.0;
+  double currentHeadingDegree = 0.0;
   final Distance distanceCalculator = const Distance();
 
   @override
@@ -245,13 +245,18 @@ class _HaritaEkraniState extends State<HaritaEkrani> {
   void _adjustCamera() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (widget.viewingRoute != null && widget.viewingRoute!.points.isNotEmpty) {
-        final bounds = LatLngBounds.fromPoints(widget.viewingRoute!.points);
-        mapController.fitCamera(
-          CameraFit.bounds(
-            bounds: bounds,
-            padding: const EdgeInsets.all(50.0),
-          ),
-        );
+        if (widget.viewingRoute!.points.length == 1) {
+          mapController.move(widget.viewingRoute!.points.first, 16.0);
+        } else {
+          final bounds = LatLngBounds.fromPoints(widget.viewingRoute!.points);
+          mapController.fitCamera(
+            CameraFit.bounds(
+              bounds: bounds,
+              padding: const EdgeInsets.all(80.0),
+              maxZoom: 17.0, // Kısa rotalarda haritanın kaybolmasını önleyen sınır
+            ),
+          );
+        }
       } else if (widget.focusTargetLocation != null) {
         mapController.move(widget.focusTargetLocation!, 16.0);
       }
@@ -549,8 +554,7 @@ class _HaritaEkraniState extends State<HaritaEkrani> {
 
     final List<Marker> allMarkers = [];
 
-    // Hareket Durumuna Göre Konum Simgesi (Dururken Yuvarlak, Yürürken Ok)
-    bool isMoving = currentSpeedMps > 0.5; // ~1.8 km/s üzeri hız hareket kabul edilir
+    bool isMoving = currentSpeedMps > 0.5;
 
     allMarkers.add(
       Marker(
@@ -584,12 +588,10 @@ class _HaritaEkraniState extends State<HaritaEkrani> {
       ),
     );
 
-    // Kayıtlı Pin İşaretleri
     for (var pin in savedMarkers) {
       allMarkers.add(_buildSavedPinMarker(pin));
     }
 
-    // Başlangıç ve Bitiş Bayrakları
     if (activeRoutePoints.isNotEmpty) {
       allMarkers.add(
         _buildFlagMarker(
@@ -639,6 +641,8 @@ class _HaritaEkraniState extends State<HaritaEkrani> {
             options: MapOptions(
               initialCenter: currentLocation,
               initialZoom: 15.0,
+              maxZoom: 18.0,
+              minZoom: 3.0,
               onLongPress: (tapPosition, point) {
                 _showAddMarkerDialog(targetPoint: point);
               },
@@ -649,6 +653,8 @@ class _HaritaEkraniState extends State<HaritaEkrani> {
                     ? 'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}'
                     : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                 userAgentPackageName: 'com.example.harita',
+                maxZoom: 19,
+                maxNativeZoom: 18,
               ),
               PolylineLayer(
                 polylines: [
