@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -215,6 +216,8 @@ class _HaritaEkraniState extends State<HaritaEkrani> {
   StreamSubscription<Position>? positionStream;
   final MapController mapController = MapController();
   LatLng currentLocation = const LatLng(39.92077, 32.85411);
+  double currentSpeedMps = 0.0; // m/s cinsinden hız
+  double currentHeadingDegree = 0.0; // Derece cinsinden pusula/yön bilgisi
   final Distance distanceCalculator = const Distance();
 
   @override
@@ -242,7 +245,6 @@ class _HaritaEkraniState extends State<HaritaEkrani> {
   void _adjustCamera() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (widget.viewingRoute != null && widget.viewingRoute!.points.isNotEmpty) {
-        // Tüm rotayı ekrana sığdır
         final bounds = LatLngBounds.fromPoints(widget.viewingRoute!.points);
         mapController.fitCamera(
           CameraFit.bounds(
@@ -282,6 +284,8 @@ class _HaritaEkraniState extends State<HaritaEkrani> {
       if (mounted) {
         setState(() {
           currentLocation = LatLng(pos.latitude, pos.longitude);
+          currentSpeedMps = pos.speed;
+          currentHeadingDegree = pos.heading;
         });
         if (widget.focusTargetLocation == null && widget.viewingRoute == null) {
           mapController.move(currentLocation, 16.0);
@@ -318,7 +322,6 @@ class _HaritaEkraniState extends State<HaritaEkrani> {
         startTime = DateTime.now();
       });
 
-      // Canlı zaman sayacı
       recordingTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
         if (mounted && isRecording) {
           setState(() {});
@@ -343,6 +346,8 @@ class _HaritaEkraniState extends State<HaritaEkrani> {
               );
             }
             currentLocation = newPoint;
+            currentSpeedMps = position.speed;
+            currentHeadingDegree = position.heading;
             routePoints.add(newPoint);
           });
           mapController.move(currentLocation, mapController.camera.zoom);
@@ -351,7 +356,8 @@ class _HaritaEkraniState extends State<HaritaEkrani> {
     }
   }
 
-  Future<void> _showAddMarkerDialog() async {
+  Future<void> _showAddMarkerDialog({LatLng? targetPoint}) async {
+    final pointToSave = targetPoint ?? currentLocation;
     final now = DateTime.now();
     final defaultName = 'İşaret - ${DateFormat('dd.MM.yyyy HH:mm').format(now)}';
     final nameController = TextEditingController(text: defaultName);
@@ -360,7 +366,7 @@ class _HaritaEkraniState extends State<HaritaEkrani> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Bulunduğun Yeri İşaretle'),
+          title: Text(targetPoint != null ? 'Seçilen Yeri İşaretle' : 'Bulunduğun Yeri İşaretle'),
           content: TextField(
             controller: nameController,
             decoration: const InputDecoration(
@@ -379,8 +385,8 @@ class _HaritaEkraniState extends State<HaritaEkrani> {
                   id: now.millisecondsSinceEpoch.toString(),
                   name: nameController.text.trim().isEmpty ? defaultName : nameController.text,
                   dateStr: DateFormat('dd.MM.yyyy HH:mm').format(now),
-                  latitude: currentLocation.latitude,
-                  longitude: currentLocation.longitude,
+                  latitude: pointToSave.latitude,
+                  longitude: pointToSave.longitude,
                 );
                 final prefs = await SharedPreferences.getInstance();
                 final list = prefs.getStringList('saved_markers') ?? [];
@@ -543,20 +549,38 @@ class _HaritaEkraniState extends State<HaritaEkrani> {
 
     final List<Marker> allMarkers = [];
 
-    // Mevcut Konum
+    // Hareket Durumuna Göre Konum Simgesi (Dururken Yuvarlak, Yürürken Ok)
+    bool isMoving = currentSpeedMps > 0.5; // ~1.8 km/s üzeri hız hareket kabul edilir
+
     allMarkers.add(
       Marker(
         point: currentLocation,
-        width: 24,
-        height: 24,
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.blueAccent,
-            shape: BoxShape.circle,
-            border: Border.all(color: Colors.white, width: 3),
-            boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 6)],
-          ),
-        ),
+        width: 36,
+        height: 36,
+        child: isMoving
+            ? Transform.rotate(
+                angle: (currentHeadingDegree * (math.pi / 180)),
+                child: Container(
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    boxShadow: [BoxShadow(color: Colors.black38, blurRadius: 4)],
+                  ),
+                  child: const Icon(
+                    Icons.navigation,
+                    color: Colors.blueAccent,
+                    size: 30,
+                  ),
+                ),
+              )
+            : Container(
+                decoration: BoxDecoration(
+                  color: Colors.blueAccent,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 3),
+                  boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 6)],
+                ),
+              ),
       ),
     );
 
@@ -615,6 +639,9 @@ class _HaritaEkraniState extends State<HaritaEkrani> {
             options: MapOptions(
               initialCenter: currentLocation,
               initialZoom: 15.0,
+              onLongPress: (tapPosition, point) {
+                _showAddMarkerDialog(targetPoint: point);
+              },
             ),
             children: [
               TileLayer(
@@ -636,7 +663,6 @@ class _HaritaEkraniState extends State<HaritaEkrani> {
             ],
           ),
 
-          // Kayıtlı Rota Detay Kartı
           if (widget.viewingRoute != null)
             Positioned(
               top: 16,
@@ -704,7 +730,6 @@ class _HaritaEkraniState extends State<HaritaEkrani> {
               ),
             )
           else
-            // Canlı Kayıt / Durum Kartı
             Positioned(
               top: 16,
               left: 16,
@@ -756,7 +781,7 @@ class _HaritaEkraniState extends State<HaritaEkrani> {
         children: [
           FloatingActionButton.extended(
             heroTag: 'btnMarker',
-            onPressed: _showAddMarkerDialog,
+            onPressed: () => _showAddMarkerDialog(),
             backgroundColor: Colors.orange.shade800,
             foregroundColor: Colors.white,
             icon: const Icon(Icons.add_location_alt),
