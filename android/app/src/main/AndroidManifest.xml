@@ -10,8 +10,7 @@
 
     <application
         android:label="Av &amp; Doğa Haritası"
-        android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:name="${applicationName}">
         <activity
             android:name=".MainActivity"
             android:exported="true"
