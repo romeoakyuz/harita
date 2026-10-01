@@ -10,9 +10,9 @@
 
     <application
         android:label="Av &amp; Doğa Haritası"
-        android:name="${applicationName}">
+        android:name="${applicationName}"
+        android:icon="@drawable/ic_notification">
 
-        <!-- Arka plan konum servisi ek tanımı (Çökmeyi önler) -->
         <service
             android:name="com.baseflow.geolocator.location.GeolocationService"
             android:foregroundServiceType="location"

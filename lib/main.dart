@@ -338,7 +338,6 @@ class _HaritaEkraniState extends State<HaritaEkrani> {
         }
       });
 
-      // Xiaomi Arka Plan ve Bildirim Ayarlı Konum Dinleyicisi
       late LocationSettings locationSettings;
       if (defaultTargetPlatform == TargetPlatform.android) {
         locationSettings = AndroidSettings(
@@ -346,9 +345,10 @@ class _HaritaEkraniState extends State<HaritaEkrani> {
           distanceFilter: 3,
           forceLocationManager: true,
           intervalDuration: const Duration(seconds: 2),
-          foregroundNotificationConfig: ForegroundNotificationConfig(
+          foregroundNotificationConfig: const ForegroundNotificationConfig(
             notificationTitle: "🔴 KAYIT YAPILIYOR - Av Rotası",
-            notificationText: "Mesafe: ${(totalDistanceMeters / 1000).toStringAsFixed(2)} km | Arka planda aktif",
+            notificationText: "Mesafe ve konum arka planda kaydediliyor...",
+            notificationIcon: AndroidResource(name: 'ic_notification', defType: 'drawable'),
             enableWakeLock: true,
           ),
         );
