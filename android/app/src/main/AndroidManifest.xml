@@ -11,6 +11,13 @@
     <application
         android:label="Av &amp; Doğa Haritası"
         android:name="${applicationName}">
+
+        <!-- Arka plan konum servisi ek tanımı (Çökmeyi önler) -->
+        <service
+            android:name="com.baseflow.geolocator.location.GeolocationService"
+            android:foregroundServiceType="location"
+            android:exported="false" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
