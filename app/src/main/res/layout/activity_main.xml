@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <TextView
+        android:id="@+id/tvDurum"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Durum: Beklemede"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:paddingBottom="8dp" />
+
+    <TextView
+        android:id="@+id/tvNoktaSayisi"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Toplam Kayıtlı Nokta: 0"
+        android:textSize="16sp"
+        android:paddingBottom="8dp" />
+
+    <TextView
+        android:id="@+id/tvSonKonum"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Son Konum: --"
+        android:textSize="14sp"
+        android:paddingBottom="16dp" />
+
+    <Button
+        android:id="@+id/btnBaslat"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Takibi Başlat" />
+
+    <Button
+        android:id="@+id/btnDurdur"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:enabled="false"
+        android:text="Takibi Durdur" />
+
+    <Button
+        android:id="@+id/btnAyarlar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Kayıt Filtre Ayarları" />
+
+    <Button
+        android:id="@+id/btnTemizle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Verileri Temizle" />
+
+</LinearLayout>
