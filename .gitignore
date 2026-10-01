@@ -1,7 +1,9 @@
-.idea/
-.gradle/
-build/
-.dart_tool/
-.packages
-.pub-cache/
-.pub/
+*.iml
+.gradle
+/local.properties
+/.idea
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
