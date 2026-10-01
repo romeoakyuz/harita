@@ -110,11 +110,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(locationReceiver, new IntentFilter(GpsTrackingService.ACTION_LOCATION_BROADCAST), Context.RECEIVER_EXPORTED);
-        } else {
-            registerReceiver(locationReceiver, new IntentFilter(GpsTrackingService.ACTION_LOCATION_BROADCAST));
-        }
+        ContextCompat.registerReceiver(this, locationReceiver, new IntentFilter(GpsTrackingService.ACTION_LOCATION_BROADCAST), ContextCompat.RECEIVER_EXPORTED);
         ekraniGuncelle();
     }
 

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.harita.gps">
 
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
@@ -15,7 +16,7 @@
         android:theme="@style/Theme.AppCompat.Light.DarkActionBar">
 
         <activity
-            android:name=".MainActivity"
+            android:name="com.harita.gps.MainActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -24,12 +25,12 @@
         </activity>
 
         <activity
-            android:name=".SettingsActivity"
+            android:name="com.harita.gps.SettingsActivity"
             android:label="Kayıt Ayarları"
-            android:parentActivityName=".MainActivity" />
+            android:parentActivityName="com.harita.gps.MainActivity" />
 
         <service
-            android:name=".GpsTrackingService"
+            android:name="com.harita.gps.GpsTrackingService"
             android:foregroundServiceType="location"
             android:exported="false" />
 
