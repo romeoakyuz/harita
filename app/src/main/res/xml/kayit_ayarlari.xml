@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <PreferenceCategory app:title="Noktasal Kayıt Ayarları">
+
+        <ListPreference
+            app:key="kayit_sikligi"
+            app:title="1. Kayıt Sıklığı"
+            app:summary="Konum alma aralığı (Varsayılan: 1 sn)"
+            app:defaultValue="1"
+            app:entries="@array/kayit_sikligi_etiketler"
+            app:entryValues="@array/kayit_sikligi_degerler" />
+
+        <ListPreference
+            app:key="min_mesafe"
+            app:title="2. Minimum Mesafe"
+            app:summary="Nokta kaydı için gereken en az hareket (Varsayılan: 10 m)"
+            app:defaultValue="10"
+            app:entries="@array/min_mesafe_etiketler"
+            app:entryValues="@array/min_mesafe_degerler" />
+
+        <ListPreference
+            app:key="max_mesafe"
+            app:title="3. Maksimum Çizgi Mesafesi"
+            app:summary="İki nokta arası azami segment mesafesi (Varsayılan: 500 m)"
+            app:defaultValue="500"
+            app:entries="@array/max_mesafe_etiketler"
+            app:entryValues="@array/max_mesafe_degerler" />
+
+        <ListPreference
+            app:key="gps_hassasiyet"
+            app:title="4. GPS Hassasiyet Sınırı"
+            app:summary="Daha yüksek sapmalı konumlama yok sayılır (Varsayılan: 50 m)"
+            app:defaultValue="50"
+            app:entries="@array/gps_hassasiyet_etiketler"
+            app:entryValues="@array/gps_hassasiyet_degerler" />
+
+    </PreferenceCategory>
+
+</PreferenceScreen>

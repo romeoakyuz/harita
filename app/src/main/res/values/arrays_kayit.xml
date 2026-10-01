@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 1. Kayıt Sıklığı -->
+    <string-array name="kayit_sikligi_etiketler">
+        <item>1 Saniye</item>
+        <item>2 Saniye</item>
+        <item>5 Saniye</item>
+        <item>10 Saniye</item>
+    </string-array>
+    <string-array name="kayit_sikligi_degerler">
+        <item>1</item>
+        <item>2</item>
+        <item>5</item>
+        <item>10</item>
+    </string-array>
+
+    <!-- 2. Minimum Mesafe -->
+    <string-array name="min_mesafe_etiketler">
+        <item>5 Metre</item>
+        <item>10 Metre</item>
+        <item>20 Metre</item>
+        <item>50 Metre</item>
+    </string-array>
+    <string-array name="min_mesafe_degerler">
+        <item>5</item>
+        <item>10</item>
+        <item>20</item>
+        <item>50</item>
+    </string-array>
+
+    <!-- 3. Maksimum Mesafe -->
+    <string-array name="max_mesafe_etiketler">
+        <item>250 Metre</item>
+        <item>500 Metre (0.5 km)</item>
+        <item>1000 Metre (1 km)</item>
+    </string-array>
+    <string-array name="max_mesafe_degerler">
+        <item>250</item>
+        <item>500</item>
+        <item>1000</item>
+    </string-array>
+
+    <!-- 4. GPS Hassasiyet Sınırı -->
+    <string-array name="gps_hassasiyet_etiketler">
+        <item>10 Metre</item>
+        <item>25 Metre</item>
+        <item>50 Metre</item>
+        <item>100 Metre</item>
+    </string-array>
+    <string-array name="gps_hassasiyet_degerler">
+        <item>10</item>
+        <item>25</item>
+        <item>50</item>
+        <item>100</item>
+    </string-array>
+</resources>
