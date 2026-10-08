@@ -111,6 +111,10 @@ fun MapScreen() {
                 if (isTracking) {
                     val geo = GeoPoint(location.latitude, location.longitude)
                     routePolyline?.addPoint(geo)
+                    mapViewInstance?.controller?.animateTo(geo)
+                    if (location.hasBearing()) {
+                        mapViewInstance?.setMapOrientation(-location.bearing)
+                    }
                     mapViewInstance?.invalidate()
                 }
             }
@@ -146,7 +150,7 @@ fun MapScreen() {
                     setBuiltInZoomControls(false)
                     
                     setMinZoomLevel(4.0)
-                    setMaxZoomLevel(19.0) // Maksimum zoom 19 yapıldı
+                    setMaxZoomLevel(18.5) // Maksimum zoom 18.5 yapıldı
                     controller.setZoom(9.0)
                     
                     val rotationGestureOverlay = RotationGestureOverlay(this).apply {
@@ -231,6 +235,9 @@ fun MapScreen() {
                     }
                     mapViewInstance?.overlays?.add(startMarker)
                     startMarker.showInfoWindow()
+                    
+                    mapViewInstance?.controller?.animateTo(startLoc)
+                    mapViewInstance?.controller?.setZoom(17.5)
                     mapViewInstance?.invalidate()
 
                     try {
@@ -249,6 +256,7 @@ fun MapScreen() {
                 onClick = { 
                     isTracking = false
                     locationManager.removeUpdates(locationListener)
+                    mapViewInstance?.setMapOrientation(0f) // Takip bitince kuzeye çevir
 
                     val points = routePolyline?.actualPoints
                     val endLoc = myLocationOverlay?.myLocation ?: points?.lastOrNull()
