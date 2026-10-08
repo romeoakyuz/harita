@@ -145,16 +145,13 @@ fun MapScreen() {
                     setBuiltInZoomControls(false)
                     
                     setMinZoomLevel(4.0)
-                    setMaxZoomLevel(18.0) // Maksimum zoom 18 yapıldı
-                    
+                    setMaxZoomLevel(18.0)
                     controller.setZoom(9.0)
                     
-                    // Haritayı iki parmakla döndürme özelliği eklendi
                     val rotationGestureOverlay = RotationGestureOverlay(this).apply {
                         isEnabled = true
                     }
                     overlays.add(rotationGestureOverlay)
-                    setMultiTouchControls(true)
                     
                     val provider = GpsMyLocationProvider(ctx)
                     val overlay = MyLocationNewOverlay(provider, this)
@@ -177,7 +174,6 @@ fun MapScreen() {
             modifier = Modifier.fillMaxSize()
         )
 
-        // Konum Butonu: Basıldığında 500 mt yaklaşır ve konumu ortalar (Zoom 17.0)
         FloatingActionButton(
             onClick = { 
                 myLocationOverlay?.let { overlay ->
@@ -195,7 +191,6 @@ fun MapScreen() {
             Icon(Icons.Default.LocationOn, contentDescription = "Konumuma Git")
         }
 
-        // Başlat / Bitir Butonları
         Row(
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 32.dp).fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly
@@ -217,7 +212,6 @@ fun MapScreen() {
                     isTracking = true
                     mapViewInstance?.overlays?.removeAll { it is Marker || it is Polyline }
 
-                    // Kırmızı Çizgi
                     val polyline = Polyline().apply {
                         outlinePaint.color = android.graphics.Color.RED
                         outlinePaint.strokeWidth = 12f
@@ -226,7 +220,6 @@ fun MapScreen() {
                     mapViewInstance?.overlays?.add(polyline)
                     routePolyline = polyline
 
-                    // Başlangıç İşaretçisi ve Yazısı
                     val startMarker = Marker(mapViewInstance).apply {
                         position = startLoc
                         title = "Başlangıç"
@@ -236,7 +229,7 @@ fun MapScreen() {
                         }
                     }
                     mapViewInstance?.overlays?.add(startMarker)
-                    startMarker.showInfoWindow() // Başlangıç yazısını göster
+                    startMarker.showInfoWindow()
                     mapViewInstance?.invalidate()
 
                     try {
@@ -258,7 +251,6 @@ fun MapScreen() {
 
                     val endLoc = myLocationOverlay?.myLocation ?: routePolyline?.actualPoints?.lastOrNull()
                     if (endLoc != null) {
-                        // Bitiş İşaretçisi ve Yazısı
                         val endMarker = Marker(mapViewInstance).apply {
                             position = endLoc
                             title = "Bitiş"
@@ -268,7 +260,7 @@ fun MapScreen() {
                             }
                         }
                         mapViewInstance?.overlays?.add(endMarker)
-                        endMarker.showInfoWindow() // Bitiş yazısını göster
+                        endMarker.showInfoWindow()
                         mapViewInstance?.invalidate()
                     }
                 },
