@@ -1,12 +1,13 @@
 package com.example.harita
 
+import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -23,10 +24,11 @@ import org.osmdroid.views.MapView
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Osmdroid yapılandırması
+        
+        // Osmdroid yapılandırması (Standart SharedPreferences kullanıldı)
         Configuration.getInstance().load(
             applicationContext,
-            androidx.preference.PreferenceManager.getDefaultSharedPreferences(applicationContext)
+            applicationContext.getSharedPreferences("osmdroid_prefs", Context.MODE_PRIVATE)
         )
         
         setContent {
@@ -44,7 +46,7 @@ fun RouteTrackerApp() {
             NavigationBar {
                 val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
                 NavigationBarItem(
-                    icon = { Icon(Icons.Default.Map, contentDescription = "Harita") },
+                    icon = { Icon(Icons.Default.LocationOn, contentDescription = "Harita") },
                     label = { Text("Harita") },
                     selected = currentRoute == "map",
                     onClick = { navController.navigate("map") { popUpTo(0) } }
@@ -71,7 +73,6 @@ fun RouteTrackerApp() {
 
 @Composable
 fun MapScreen() {
-    // İstediğiniz gibi: Başlangıçta uydu (USGS), butona basınca normal (MAPNIK) görünüm
     var isSatellite by remember { mutableStateOf(true) }
     var isTracking by remember { mutableStateOf(false) }
     var mapViewInstance by remember { mutableStateOf<MapView?>(null) }
@@ -80,17 +81,16 @@ fun MapScreen() {
         AndroidView(
             factory = { context ->
                 MapView(context).apply {
-                    setTileSource(TileSourceFactory.USGS_SAT) // Uydu görünümü başlangıç
+                    setTileSource(TileSourceFactory.USGS_SAT)
                     setMultiTouchControls(true)
                     controller.setZoom(15.0)
-                    controller.setPoint(GeoPoint(39.9207, 32.8541)) // Ankara merkezli başlangıç
+                    controller.setCenter(GeoPoint(39.9207, 32.8541)) // setCenter olarak düzeltildi
                     mapViewInstance = this
                 }
             },
             modifier = Modifier.fillMaxSize()
         )
         
-        // Görünüm Değiştirme Butonu (Uydu <-> Normal)
         Button(
             onClick = { 
                 isSatellite = !isSatellite
@@ -98,7 +98,7 @@ fun MapScreen() {
                     if (isSatellite) {
                         map.setTileSource(TileSourceFactory.USGS_SAT)
                     } else {
-                        map.setTileSource(TileSourceFactory.MAPNIK) // Standart OpenStreetMap normal görünüm
+                        map.setTileSource(TileSourceFactory.MAPNIK)
                     }
                 }
             },
@@ -107,7 +107,6 @@ fun MapScreen() {
             Text(if (isSatellite) "Normale Geç" else "Uyduya Geç")
         }
 
-        // Başlat / Bitir Butonları
         Row(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -151,7 +150,7 @@ fun SettingsScreen() {
         )
         ListItem(
             headlineContent = { Text("Geçmiş Rotalar") },
-            modifier.clickable { }
+            modifier = Modifier.clickable { } // modifier = Modifier olarak düzeltildi
         )
         ListItem(
             headlineContent = { Text("Rota Ayarları") },
