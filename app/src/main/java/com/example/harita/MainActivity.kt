@@ -60,6 +60,18 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+// İşaretçi ikonunu küçültmek için yardımcı fonksiyon
+fun createSmallMarkerIcon(context: Context, resId: Int, color: Int): android.graphics.drawable.Drawable {
+    val drawable = ContextCompat.getDrawable(context, resId)?.mutate()!!
+    drawable.setTint(color)
+    val sizePx = (28 * context.resources.displayMetrics.density).toInt()
+    val bitmap = android.graphics.Bitmap.createBitmap(sizePx, sizePx, android.graphics.Bitmap.Config.ARGB_8888)
+    val canvas = android.graphics.Canvas(bitmap)
+    drawable.setBounds(0, 0, canvas.width, canvas.height)
+    drawable.draw(canvas)
+    return android.graphics.drawable.BitmapDrawable(context.resources, bitmap)
+}
+
 @Composable
 fun RouteTrackerApp() {
     val navController = rememberNavController()
@@ -229,9 +241,7 @@ fun MapScreen() {
                         position = startLoc
                         title = "Start"
                         setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                        icon = context.getDrawable(android.R.drawable.presence_online)?.mutate()?.apply {
-                            setTint(android.graphics.Color.GREEN)
-                        }
+                        icon = createSmallMarkerIcon(context, android.R.drawable.presence_online, android.graphics.Color.GREEN)
                     }
                     mapViewInstance?.overlays?.add(startMarker)
                     startMarker.showInfoWindow()
@@ -266,9 +276,7 @@ fun MapScreen() {
                             position = endLoc
                             title = "Stop"
                             setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                            icon = context.getDrawable(android.R.drawable.presence_busy)?.mutate()?.apply {
-                                setTint(android.graphics.Color.RED)
-                            }
+                            icon = createSmallMarkerIcon(context, android.R.drawable.presence_busy, android.graphics.Color.RED)
                         }
                         mapViewInstance?.overlays?.add(endMarker)
                         endMarker.showInfoWindow()
