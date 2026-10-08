@@ -33,8 +33,9 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.navigation.compose.*
 import org.osmdroid.config.Configuration
-import org.osmdroid.tileprovider.tilesource.TileSourceFactory
+import org.osmdroid.tileprovider.tilesource.OnlineTileSourceBase
 import org.osmdroid.util.GeoPoint
+import org.osmdroid.util.MapTileIndex
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polyline
@@ -127,8 +128,19 @@ fun MapScreen() {
         AndroidView(
             factory = { ctx ->
                 MapView(ctx).apply {
-                    // Doğrudan Uydu Görünümü
-                    setTileSource(TileSourceFactory.USGS_SAT)
+                    // Yüksek Çözünürlüklü Esri Net Uydu Haritası
+                    val esriSatellite = object : OnlineTileSourceBase(
+                        "EsriSatellite", 0, 19, 256, "", arrayOf("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/")
+                    ) {
+                        override fun getTileURLString(pMapTileIndex: Long): String {
+                            val zoom = MapTileIndex.getZoom(pMapTileIndex)
+                            val y = MapTileIndex.getY(pMapTileIndex)
+                            val x = MapTileIndex.getX(pMapTileIndex)
+                            return "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/$zoom/$y/$x"
+                        }
+                    }
+                    
+                    setTileSource(esriSatellite)
                     setMultiTouchControls(true)
                     setBuiltInZoomControls(false)
                     controller.setZoom(19.0)
@@ -181,7 +193,7 @@ fun MapScreen() {
                 onClick = { 
                     val hasPerm = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
                     if (!hasPerm) {
-                        Toast.makeText(context, "Önce Ayarlar'dan Konum izni verin!", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Önce Ayarlar > İzinler bölümünden Konum izni verin!", Toast.LENGTH_SHORT).show()
                         return@Button
                     }
                     
@@ -258,6 +270,35 @@ fun MapScreen() {
 
 @Composable
 fun SettingsScreen() {
+    var currentSubScreen by remember { mutableStateOf("main") }
+
+    if (currentSubScreen == "main") {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text("Ayarlar", style = MaterialTheme.typography.headlineMedium)
+            Divider()
+            
+            ListItem(
+                headlineContent = { Text("İzinler") },
+                supportingContent = { Text("GPS, Pil ve Otomatik Başlatma detayları") },
+                modifier = Modifier.clickable { currentSubScreen = "permissions" }
+            )
+            Divider()
+            ListItem(headlineContent = { Text("Yer İşaretleri") }, modifier = Modifier.clickable { })
+            ListItem(headlineContent = { Text("Geçmiş Rotalar") }, modifier = Modifier.clickable { })
+            ListItem(headlineContent = { Text("Rota Ayarları") }, modifier = Modifier.clickable { })
+        }
+    } else if (currentSubScreen == "permissions") {
+        PermissionsDetailScreen(onBack = { currentSubScreen = "main" })
+    }
+}
+
+@Composable
+fun PermissionsDetailScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
     val prefs = context.getSharedPreferences("harita_prefs", Context.MODE_PRIVATE)
@@ -271,14 +312,25 @@ fun SettingsScreen() {
     val notifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { notifGranted = it }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        item { Text("Ayarlar", style = MaterialTheme.typography.headlineMedium) }
+        item {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .clickable(onClick = onBack)
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp)
+            ) {
+                Text("< Geri", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                Spacer(modifier = Modifier.width(16.dp))
+                Text("İzinler Detayı", style = MaterialTheme.typography.headlineMedium)
+            }
+        }
         item { Divider() }
-        
-        // --- İZİNLER SEKMESİ ---
-        item { Text("İzinler", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary) }
         
         item {
             PermissionItem("GPS / Konum İzni", locGranted) {
@@ -325,13 +377,6 @@ fun SettingsScreen() {
                 }
             }
         }
-
-        item { Divider(modifier = Modifier.padding(vertical =.8.dp)) }
-        item { Text("Diğer Menüler", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary) }
-        
-        item { ListItem(headlineContent = { Text("Yer İşaretleri") }, modifier = Modifier.clickable { }) }
-        item { ListItem(headlineContent = { Text("Geçmiş Rotalar") }, modifier = Modifier.clickable { }) }
-        item { ListItem(headlineContent = { Text("Rota Ayarları") }, modifier = Modifier.clickable { }) }
     }
 }
 
