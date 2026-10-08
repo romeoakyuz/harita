@@ -33,7 +33,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.navigation.compose.*
 import org.osmdroid.config.Configuration
-import org.osmdroid.tileprovider.tilesource.OnlineTileSourceBase
+import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
@@ -127,19 +127,8 @@ fun MapScreen() {
         AndroidView(
             factory = { ctx ->
                 MapView(ctx).apply {
-                    // Esri Uydu Haritası Hatasız Yapılandırması
-                    val esriSatellite = object : OnlineTileSourceBase(
-                        "EsriSatellite", 0, 19, 256, ".jpg",
-                        arrayOf("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/")
-                    ) {
-                        override fun getTileURLString(pMapTileIndex: Long): String {
-                            return baseURL + org.osmdroid.tileprovider.tilesource.MapTileIndex.getZoom(pMapTileIndex) +
-                                    "/" + org.osmdroid.tileprovider.tilesource.MapTileIndex.getY(pMapTileIndex) +
-                                    "/" + org.osmdroid.tileprovider.tilesource.MapTileIndex.getX(pMapTileIndex)
-                        }
-                    }
-                    
-                    setTileSource(esriSatellite)
+                    // Kesintisiz çalışan hazır yüksek çözünürlüklü uydu katmanı
+                    setTileSource(TileSourceFactory.WIREFRAME.name?.let { TileSourceFactory.USGS_SAT } ?: TileSourceFactory.MAPNIK)
                     setMultiTouchControls(true)
                     setBuiltInZoomControls(false)
                     controller.setZoom(19.0)
@@ -205,7 +194,7 @@ fun MapScreen() {
                     isTracking = true
                     mapViewInstance?.overlays?.removeAll { it is Marker || it is Polyline }
 
-                    // Kırmızı Rota Çizgisi
+                    // Kırmızı Çizgi
                     val polyline = Polyline().apply {
                         outlinePaint.color = android.graphics.Color.RED
                         outlinePaint.strokeWidth = 12f
