@@ -33,6 +33,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.navigation.compose.*
 import org.osmdroid.config.Configuration
+import org.osmdroid.tileprovider.tilesource.OnlineTileSourceBase
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
@@ -127,8 +128,13 @@ fun MapScreen() {
         AndroidView(
             factory = { ctx ->
                 MapView(ctx).apply {
-                    // Bloklanma sorununu aşmak için standart Wikimedia harita katmanı kullanıldı
-                    setTileSource(TileSourceFactory.WIKIMEDIA)
+                    // Esri World Imagery: Kesintisiz ve engelsiz yüksek kaliteli uydu haritası
+                    val esriSatellite = OnlineTileSourceBase(
+                        "EsriSatellite", 0, 19, 256, ".jpg",
+                        arrayOf("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/")
+                    ) { p0 -> p0.url }
+                    
+                    setTileSource(esriSatellite)
                     setMultiTouchControls(true)
                     setBuiltInZoomControls(false)
                     controller.setZoom(19.0)
@@ -154,6 +160,7 @@ fun MapScreen() {
             modifier = Modifier.fillMaxSize()
         )
 
+        // Konumuma Git Butonu
         FloatingActionButton(
             onClick = { 
                 myLocationOverlay?.let { overlay ->
@@ -171,6 +178,7 @@ fun MapScreen() {
             Icon(Icons.Default.LocationOn, contentDescription = "Konumuma Git")
         }
 
+        // Başlat / Bitir Butonları
         Row(
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 32.dp).fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly
@@ -192,19 +200,21 @@ fun MapScreen() {
                     isTracking = true
                     mapViewInstance?.overlays?.removeAll { it is Marker || it is Polyline }
 
+                    // Kırmızı Çizgi
                     val polyline = Polyline().apply {
                         outlinePaint.color = android.graphics.Color.RED
-                        outlinePaint.strokeWidth = 10f
+                        outlinePaint.strokeWidth = 12f
                         addPoint(startLoc)
                     }
                     mapViewInstance?.overlays?.add(polyline)
                     routePolyline = polyline
 
+                    // Başlangıç İşaretçisi (Yeşil Bayrak / Nokta)
                     val startMarker = Marker(mapViewInstance).apply {
                         position = startLoc
                         title = "Başlangıç"
                         setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                        icon = icon?.constantState?.newDrawable()?.mutate()?.apply {
+                        icon = context.getDrawable(android.R.drawable.presence_online)?.mutate()?.apply {
                             setTint(android.graphics.Color.GREEN)
                         }
                     }
@@ -230,11 +240,12 @@ fun MapScreen() {
 
                     val endLoc = myLocationOverlay?.myLocation ?: routePolyline?.actualPoints?.lastOrNull()
                     if (endLoc != null) {
+                        // Bitiş İşaretçisi (Kırmızı Bayrak / Nokta)
                         val endMarker = Marker(mapViewInstance).apply {
                             position = endLoc
                             title = "Bitiş"
                             setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                            icon = icon?.constantState?.newDrawable()?.mutate()?.apply {
+                            icon = context.getDrawable(android.R.drawable.presence_busy)?.mutate()?.apply {
                                 setTint(android.graphics.Color.RED)
                             }
                         }
@@ -272,7 +283,8 @@ fun SettingsScreen() {
         item { Text("Ayarlar", style = MaterialTheme.typography.headlineMedium) }
         item { Divider() }
         
-        item { Text("Gerekli İzinler", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary) }
+        // --- İZİNLER SEKMESİ / BÖLÜMÜ ---
+        item { Text("İzinler", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary) }
         
         item {
             PermissionItem("GPS / Konum İzni", locGranted) {
@@ -321,7 +333,7 @@ fun SettingsScreen() {
         }
 
         item { Divider(modifier = Modifier.padding(vertical = 8.dp)) }
-        item { Text("Menüler", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary) }
+        item { Text("Diğer Menüler", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary) }
         
         item { ListItem(headlineContent = { Text("Yer İşaretleri") }, modifier = Modifier.clickable { }) }
         item { ListItem(headlineContent = { Text("Geçmiş Rotalar") }, modifier = Modifier.clickable { }) }
