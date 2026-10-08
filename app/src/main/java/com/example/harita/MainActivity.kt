@@ -150,7 +150,7 @@ fun MapScreen() {
                     setBuiltInZoomControls(false)
                     
                     setMinZoomLevel(4.0)
-                    setMaxZoomLevel(18.5) // Maksimum zoom 18.5 yapıldı
+                    setMaxZoomLevel(18.5)
                     controller.setZoom(9.0)
                     
                     val rotationGestureOverlay = RotationGestureOverlay(this).apply {
@@ -227,7 +227,7 @@ fun MapScreen() {
 
                     val startMarker = Marker(mapViewInstance).apply {
                         position = startLoc
-                        title = "Başlangıç"
+                        title = "Start"
                         setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
                         icon = context.getDrawable(android.R.drawable.presence_online)?.mutate()?.apply {
                             setTint(android.graphics.Color.GREEN)
@@ -256,7 +256,7 @@ fun MapScreen() {
                 onClick = { 
                     isTracking = false
                     locationManager.removeUpdates(locationListener)
-                    mapViewInstance?.setMapOrientation(0f) // Takip bitince kuzeye çevir
+                    mapViewInstance?.setMapOrientation(0f)
 
                     val points = routePolyline?.actualPoints
                     val endLoc = myLocationOverlay?.myLocation ?: points?.lastOrNull()
@@ -264,7 +264,7 @@ fun MapScreen() {
                     if (endLoc != null) {
                         val endMarker = Marker(mapViewInstance).apply {
                             position = endLoc
-                            title = "Bitiş"
+                            title = "Stop"
                             setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
                             icon = context.getDrawable(android.R.drawable.presence_busy)?.mutate()?.apply {
                                 setTint(android.graphics.Color.RED)
