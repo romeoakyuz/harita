@@ -21,7 +21,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -103,14 +102,13 @@ fun MapScreen() {
 
     val locationManager = remember { context.getSystemService(Context.LOCATION_SERVICE) as android.location.LocationManager }
     
-    // GPS'ten gelen anlık konumları kırmızı çizgiye ekleyen dinleyici
     val locationListener = remember {
         object : android.location.LocationListener {
             override fun onLocationChanged(location: android.location.Location) {
                 if (isTracking) {
                     val geo = GeoPoint(location.latitude, location.longitude)
                     routePolyline?.addPoint(geo)
-                    mapViewInstance?.invalidate() // Haritayı güncelle
+                    mapViewInstance?.invalidate()
                 }
             }
             override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
@@ -147,7 +145,6 @@ fun MapScreen() {
             modifier = Modifier.fillMaxSize()
         )
         
-        // Uydu / Normal Görünüm Butonu
         Button(
             onClick = { 
                 isSatellite = !isSatellite
@@ -164,7 +161,7 @@ fun MapScreen() {
             Text(if (isSatellite) "Normale Geç" else "Uyduya Geç")
         }
 
-        // Konumuma Git Butonu
+        // Hata buradaydı: MyLocation yerine LocationOn kullanıldı
         FloatingActionButton(
             onClick = { 
                 myLocationOverlay?.let { overlay ->
@@ -179,10 +176,9 @@ fun MapScreen() {
             },
             modifier = Modifier.align(Alignment.BottomEnd).padding(bottom = 100.dp, end = 16.dp)
         ) {
-            Icon(Icons.Default.MyLocation, contentDescription = "Konumuma Git")
+            Icon(Icons.Default.LocationOn, contentDescription = "Konumuma Git")
         }
 
-        // Başlat / Bitir Butonları
         Row(
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 32.dp).fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly
@@ -203,10 +199,8 @@ fun MapScreen() {
 
                     isTracking = true
                     
-                    // Önceki rotayı ve işaretçileri temizle
                     mapViewInstance?.overlays?.removeAll { it is Marker || it is Polyline }
 
-                    // Kırmızı Çizgiyi (Polyline) oluştur
                     val polyline = Polyline().apply {
                         outlinePaint.color = android.graphics.Color.RED
                         outlinePaint.strokeWidth = 10f
@@ -215,12 +209,10 @@ fun MapScreen() {
                     mapViewInstance?.overlays?.add(polyline)
                     routePolyline = polyline
 
-                    // Başlangıç İşaretçisi (Yeşil)
                     val startMarker = Marker(mapViewInstance).apply {
                         position = startLoc
                         title = "Başlangıç"
                         setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                        // İkonu yeşile boya
                         icon = icon?.constantState?.newDrawable()?.mutate()?.apply {
                             setTint(android.graphics.Color.GREEN)
                         }
@@ -228,7 +220,6 @@ fun MapScreen() {
                     mapViewInstance?.overlays?.add(startMarker)
                     mapViewInstance?.invalidate()
 
-                    // Konum güncellemelerini almaya başla
                     try {
                         locationManager.requestLocationUpdates(android.location.LocationManager.GPS_PROVIDER, 2000L, 2f, locationListener)
                     } catch (e: SecurityException) {
@@ -248,12 +239,10 @@ fun MapScreen() {
 
                     val endLoc = myLocationOverlay?.myLocation ?: routePolyline?.actualPoints?.lastOrNull()
                     if (endLoc != null) {
-                        // Bitiş İşaretçisi (Kırmızı)
                         val endMarker = Marker(mapViewInstance).apply {
                             position = endLoc
                             title = "Bitiş"
                             setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                            // İkonu kırmızıya boya
                             icon = icon?.constantState?.newDrawable()?.mutate()?.apply {
                                 setTint(android.graphics.Color.RED)
                             }
