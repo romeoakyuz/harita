@@ -146,7 +146,7 @@ fun MapScreen() {
                     setBuiltInZoomControls(false)
                     
                     setMinZoomLevel(4.0)
-                    setMaxZoomLevel(18.0)
+                    setMaxZoomLevel(19.0) // Maksimum zoom 19 yapıldı
                     controller.setZoom(9.0)
                     
                     val rotationGestureOverlay = RotationGestureOverlay(this).apply {
@@ -211,7 +211,6 @@ fun MapScreen() {
                     }
 
                     isTracking = true
-                    // Yeni başlatmada ekrandaki eski rota ve işaretçileri tamamen temizle
                     mapViewInstance?.overlays?.removeAll { it is Marker || it is Polyline }
 
                     val polyline = Polyline().apply {
@@ -268,7 +267,6 @@ fun MapScreen() {
                         mapViewInstance?.invalidate()
                     }
 
-                    // Rotayı saat ve tarih bilgisiyle yerel hafızaya kaydet
                     if (!points.isNullOrEmpty()) {
                         val dateFormat = java.text.SimpleDateFormat("dd.MM.yyyy HH:mm", java.util.Locale.getDefault())
                         val dateStr = dateFormat.format(java.util.Date())
