@@ -39,6 +39,7 @@ import org.osmdroid.util.MapTileIndex
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polyline
+import org.osmdroid.views.overlay.gestures.RotationGestureOverlay
 import org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider
 import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay
 
@@ -144,10 +145,16 @@ fun MapScreen() {
                     setBuiltInZoomControls(false)
                     
                     setMinZoomLevel(4.0)
-                    setMaxZoomLevel(17.5)
+                    setMaxZoomLevel(18.0) // Maksimum zoom 18 yapıldı
                     
-                    // İlk açılış 50 km görünüm (Zoom 9.0)
                     controller.setZoom(9.0)
+                    
+                    // Haritayı iki parmakla döndürme özelliği eklendi
+                    val rotationGestureOverlay = RotationGestureOverlay(this).apply {
+                        isEnabled = true
+                    }
+                    overlays.add(rotationGestureOverlay)
+                    setMultiTouchControls(true)
                     
                     val provider = GpsMyLocationProvider(ctx)
                     val overlay = MyLocationNewOverlay(provider, this)
@@ -157,7 +164,7 @@ fun MapScreen() {
                         post {
                             overlay.myLocation?.let {
                                 controller.animateTo(it)
-                                controller.setZoom(9.0) // İlk açılışta 50 km ve konum ortalı
+                                controller.setZoom(9.0)
                             }
                         }
                     }
@@ -177,7 +184,7 @@ fun MapScreen() {
                     val myLoc = overlay.myLocation
                     if (myLoc != null) {
                         mapViewInstance?.controller?.animateTo(myLoc)
-                        mapViewInstance?.controller?.setZoom(17.0) // 500 mt
+                        mapViewInstance?.controller?.setZoom(17.0)
                     } else {
                         Toast.makeText(context, "Konum aranıyor, GPS açık olduğundan emin olun...", Toast.LENGTH_SHORT).show()
                     }
@@ -219,7 +226,7 @@ fun MapScreen() {
                     mapViewInstance?.overlays?.add(polyline)
                     routePolyline = polyline
 
-                    // Başlangıç İşaretçisi (Yeşil)
+                    // Başlangıç İşaretçisi ve Yazısı
                     val startMarker = Marker(mapViewInstance).apply {
                         position = startLoc
                         title = "Başlangıç"
@@ -229,6 +236,7 @@ fun MapScreen() {
                         }
                     }
                     mapViewInstance?.overlays?.add(startMarker)
+                    startMarker.showInfoWindow() // Başlangıç yazısını göster
                     mapViewInstance?.invalidate()
 
                     try {
@@ -250,7 +258,7 @@ fun MapScreen() {
 
                     val endLoc = myLocationOverlay?.myLocation ?: routePolyline?.actualPoints?.lastOrNull()
                     if (endLoc != null) {
-                        // Bitiş İşaretçisi (Kırmızı)
+                        // Bitiş İşaretçisi ve Yazısı
                         val endMarker = Marker(mapViewInstance).apply {
                             position = endLoc
                             title = "Bitiş"
@@ -260,6 +268,7 @@ fun MapScreen() {
                             }
                         }
                         mapViewInstance?.overlays?.add(endMarker)
+                        endMarker.showInfoWindow() // Bitiş yazısını göster
                         mapViewInstance?.invalidate()
                     }
                 },
