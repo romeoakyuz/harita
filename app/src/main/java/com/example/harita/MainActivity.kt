@@ -34,7 +34,6 @@ import androidx.core.content.ContextCompat
 import androidx.navigation.compose.*
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.OnlineTileSourceBase
-import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
@@ -128,11 +127,17 @@ fun MapScreen() {
         AndroidView(
             factory = { ctx ->
                 MapView(ctx).apply {
-                    // Esri World Imagery: Kesintisiz ve engelsiz yüksek kaliteli uydu haritası
-                    val esriSatellite = OnlineTileSourceBase(
+                    // Esri Uydu Haritası Hatasız Yapılandırması
+                    val esriSatellite = object : OnlineTileSourceBase(
                         "EsriSatellite", 0, 19, 256, ".jpg",
                         arrayOf("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/")
-                    ) { p0 -> p0.url }
+                    ) {
+                        override fun getTileURLString(pMapTileIndex: Long): String {
+                            return baseURL + org.osmdroid.tileprovider.tilesource.MapTileIndex.getZoom(pMapTileIndex) +
+                                    "/" + org.osmdroid.tileprovider.tilesource.MapTileIndex.getY(pMapTileIndex) +
+                                    "/" + org.osmdroid.tileprovider.tilesource.MapTileIndex.getX(pMapTileIndex)
+                        }
+                    }
                     
                     setTileSource(esriSatellite)
                     setMultiTouchControls(true)
@@ -200,7 +205,7 @@ fun MapScreen() {
                     isTracking = true
                     mapViewInstance?.overlays?.removeAll { it is Marker || it is Polyline }
 
-                    // Kırmızı Çizgi
+                    // Kırmızı Rota Çizgisi
                     val polyline = Polyline().apply {
                         outlinePaint.color = android.graphics.Color.RED
                         outlinePaint.strokeWidth = 12f
@@ -209,7 +214,7 @@ fun MapScreen() {
                     mapViewInstance?.overlays?.add(polyline)
                     routePolyline = polyline
 
-                    // Başlangıç İşaretçisi (Yeşil Bayrak / Nokta)
+                    // Başlangıç İşaretçisi (Yeşil)
                     val startMarker = Marker(mapViewInstance).apply {
                         position = startLoc
                         title = "Başlangıç"
@@ -240,7 +245,7 @@ fun MapScreen() {
 
                     val endLoc = myLocationOverlay?.myLocation ?: routePolyline?.actualPoints?.lastOrNull()
                     if (endLoc != null) {
-                        // Bitiş İşaretçisi (Kırmızı Bayrak / Nokta)
+                        // Bitiş İşaretçisi (Kırmızı)
                         val endMarker = Marker(mapViewInstance).apply {
                             position = endLoc
                             title = "Bitiş"
@@ -283,7 +288,7 @@ fun SettingsScreen() {
         item { Text("Ayarlar", style = MaterialTheme.typography.headlineMedium) }
         item { Divider() }
         
-        // --- İZİNLER SEKMESİ / BÖLÜMÜ ---
+        // --- İZİNLER BÖLÜMÜ ---
         item { Text("İzinler", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary) }
         
         item {
