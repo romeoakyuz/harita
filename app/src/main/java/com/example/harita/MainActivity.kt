@@ -45,6 +45,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
+        // OpenStreetMap sunucularından engellenmemek için User-Agent eklendi
+        Configuration.getInstance().userAgentValue = applicationContext.packageName
         Configuration.getInstance().load(
             applicationContext,
             applicationContext.getSharedPreferences("osmdroid_prefs", Context.MODE_PRIVATE)
@@ -93,7 +95,8 @@ fun RouteTrackerApp() {
 @Composable
 fun MapScreen() {
     val context = LocalContext.current
-    var isSatellite by remember { mutableStateOf(true) }
+    // Artık başlangıçta Uydu değil, Normal görünüm (false)
+    var isSatellite by remember { mutableStateOf(false) }
     var isTracking by remember { mutableStateOf(false) }
     
     var mapViewInstance by remember { mutableStateOf<MapView?>(null) }
@@ -127,15 +130,25 @@ fun MapScreen() {
         AndroidView(
             factory = { ctx ->
                 MapView(ctx).apply {
-                    setTileSource(TileSourceFactory.USGS_SAT)
+                    // Normal görünüm ile başla
+                    setTileSource(TileSourceFactory.MAPNIK)
                     setMultiTouchControls(true)
                     setBuiltInZoomControls(false)
-                    controller.setZoom(17.0)
-                    controller.setCenter(GeoPoint(39.9207, 32.8541))
+                    
+                    // Yakınlığı 19.0 (Yaklaşık 500 mt yükseklik) olarak ayarlandı
+                    controller.setZoom(19.0)
                     
                     val provider = GpsMyLocationProvider(ctx)
                     val overlay = MyLocationNewOverlay(provider, this)
                     overlay.enableMyLocation()
+                    
+                    // GPS ilk konumu bulduğu an haritayı oraya merkezle
+                    overlay.runOnFirstFix {
+                        post {
+                            controller.animateTo(overlay.myLocation)
+                        }
+                    }
+                    
                     overlays.add(overlay)
                     myLocationOverlay = overlay
                     
@@ -161,14 +174,13 @@ fun MapScreen() {
             Text(if (isSatellite) "Normale Geç" else "Uyduya Geç")
         }
 
-        // Hata buradaydı: MyLocation yerine LocationOn kullanıldı
         FloatingActionButton(
             onClick = { 
                 myLocationOverlay?.let { overlay ->
                     val myLoc = overlay.myLocation
                     if (myLoc != null) {
                         mapViewInstance?.controller?.animateTo(myLoc)
-                        mapViewInstance?.controller?.setZoom(18.0)
+                        mapViewInstance?.controller?.setZoom(19.0)
                     } else {
                         Toast.makeText(context, "Konum aranıyor, GPS açık olduğundan emin olun...", Toast.LENGTH_SHORT).show()
                     }
