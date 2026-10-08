@@ -13,12 +13,22 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.navigation.compose.*
-import com.google.maps.android.compose.*
+import org.osmdroid.config.Configuration
+import org.osmdroid.tileprovider.tilesource.TileSourceFactory
+import org.osmdroid.util.GeoPoint
+import org.osmdroid.views.MapView
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Osmdroid yapılandırması
+        Configuration.getInstance().load(
+            applicationContext,
+            androidx.preference.PreferenceManager.getDefaultSharedPreferences(applicationContext)
+        )
+        
         setContent {
             RouteTrackerApp()
         }
@@ -61,31 +71,43 @@ fun RouteTrackerApp() {
 
 @Composable
 fun MapScreen() {
-    var mapProperties by remember { 
-        mutableStateOf(MapProperties(mapType = MapType.SATELLITE)) 
-    }
+    // İstediğiniz gibi: Başlangıçta uydu (USGS), butona basınca normal (MAPNIK) görünüm
+    var isSatellite by remember { mutableStateOf(true) }
     var isTracking by remember { mutableStateOf(false) }
+    var mapViewInstance by remember { mutableStateOf<MapView?>(null) }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        GoogleMap(
-            modifier = Modifier.fillMaxSize(),
-            properties = mapProperties,
-            uiSettings = MapUiSettings(zoomControlsEnabled = false)
+        AndroidView(
+            factory = { context ->
+                MapView(context).apply {
+                    setTileSource(TileSourceFactory.USGS_SAT) // Uydu görünümü başlangıç
+                    setMultiTouchControls(true)
+                    controller.setZoom(15.0)
+                    controller.setPoint(GeoPoint(39.9207, 32.8541)) // Ankara merkezli başlangıç
+                    mapViewInstance = this
+                }
+            },
+            modifier = Modifier.fillMaxSize()
         )
         
+        // Görünüm Değiştirme Butonu (Uydu <-> Normal)
         Button(
             onClick = { 
-                mapProperties = if (mapProperties.mapType == MapType.SATELLITE) {
-                    MapProperties(mapType = MapType.NORMAL)
-                } else {
-                    MapProperties(mapType = MapType.SATELLITE)
+                isSatellite = !isSatellite
+                mapViewInstance?.let { map ->
+                    if (isSatellite) {
+                        map.setTileSource(TileSourceFactory.USGS_SAT)
+                    } else {
+                        map.setTileSource(TileSourceFactory.MAPNIK) // Standart OpenStreetMap normal görünüm
+                    }
                 }
             },
             modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
         ) {
-            Text(if (mapProperties.mapType == MapType.SATELLITE) "Normale Geç" else "Uyduya Geç")
+            Text(if (isSatellite) "Normale Geç" else "Uyduya Geç")
         }
 
+        // Başlat / Bitir Butonları
         Row(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -129,7 +151,7 @@ fun SettingsScreen() {
         )
         ListItem(
             headlineContent = { Text("Geçmiş Rotalar") },
-            modifier = Modifier.clickable { }
+            modifier.clickable { }
         )
         ListItem(
             headlineContent = { Text("Rota Ayarları") },
