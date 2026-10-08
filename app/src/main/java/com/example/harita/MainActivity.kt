@@ -127,8 +127,8 @@ fun MapScreen() {
         AndroidView(
             factory = { ctx ->
                 MapView(ctx).apply {
-                    // Kesintisiz çalışan hazır yüksek çözünürlüklü uydu katmanı
-                    setTileSource(TileSourceFactory.WIREFRAME.name?.let { TileSourceFactory.USGS_SAT } ?: TileSourceFactory.MAPNIK)
+                    // Doğrudan Uydu Görünümü
+                    setTileSource(TileSourceFactory.USGS_SAT)
                     setMultiTouchControls(true)
                     setBuiltInZoomControls(false)
                     controller.setZoom(19.0)
@@ -154,7 +154,7 @@ fun MapScreen() {
             modifier = Modifier.fillMaxSize()
         )
 
-        // Konumuma Git Butonu
+        // Konuma Git Butonu
         FloatingActionButton(
             onClick = { 
                 myLocationOverlay?.let { overlay ->
@@ -277,7 +277,7 @@ fun SettingsScreen() {
         item { Text("Ayarlar", style = MaterialTheme.typography.headlineMedium) }
         item { Divider() }
         
-        // --- İZİNLER BÖLÜMÜ ---
+        // --- İZİNLER SEKMESİ ---
         item { Text("İzinler", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary) }
         
         item {
@@ -326,7 +326,7 @@ fun SettingsScreen() {
             }
         }
 
-        item { Divider(modifier = Modifier.padding(vertical = 8.dp)) }
+        item { Divider(modifier = Modifier.padding(vertical =.8.dp)) }
         item { Text("Diğer Menüler", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary) }
         
         item { ListItem(headlineContent = { Text("Yer İşaretleri") }, modifier = Modifier.clickable { }) }
