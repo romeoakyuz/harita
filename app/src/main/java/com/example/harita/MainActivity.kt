@@ -18,6 +18,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.LocationOn
@@ -210,6 +211,7 @@ fun MapScreen() {
                     }
 
                     isTracking = true
+                    // Yeni başlatmada ekrandaki eski rota ve işaretçileri tamamen temizle
                     mapViewInstance?.overlays?.removeAll { it is Marker || it is Polyline }
 
                     val polyline = Polyline().apply {
@@ -249,7 +251,9 @@ fun MapScreen() {
                     isTracking = false
                     locationManager.removeUpdates(locationListener)
 
-                    val endLoc = myLocationOverlay?.myLocation ?: routePolyline?.actualPoints?.lastOrNull()
+                    val points = routePolyline?.actualPoints
+                    val endLoc = myLocationOverlay?.myLocation ?: points?.lastOrNull()
+                    
                     if (endLoc != null) {
                         val endMarker = Marker(mapViewInstance).apply {
                             position = endLoc
@@ -262,6 +266,32 @@ fun MapScreen() {
                         mapViewInstance?.overlays?.add(endMarker)
                         endMarker.showInfoWindow()
                         mapViewInstance?.invalidate()
+                    }
+
+                    // Rotayı saat ve tarih bilgisiyle yerel hafızaya kaydet
+                    if (!points.isNullOrEmpty()) {
+                        val dateFormat = java.text.SimpleDateFormat("dd.MM.yyyy HH:mm", java.util.Locale.getDefault())
+                        val dateStr = dateFormat.format(java.util.Date())
+                        
+                        val prefs = context.getSharedPreferences("harita_prefs", Context.MODE_PRIVATE)
+                        val jsonStr = prefs.getString("saved_routes", "[]")
+                        val array = org.json.JSONArray(jsonStr)
+                        
+                        val newRoute = org.json.JSONObject().apply {
+                            put("title", "Rota - $dateStr")
+                            put("date", dateStr)
+                            val pts = org.json.JSONArray()
+                            for (p in points) {
+                                pts.put(org.json.JSONObject().apply {
+                                    put("lat", p.latitude)
+                                    put("lon", p.longitude)
+                                })
+                            }
+                            put("points", pts)
+                        }
+                        array.put(newRoute)
+                        prefs.edit().putString("saved_routes", array.toString()).apply()
+                        Toast.makeText(context, "Rota kaydedildi: $dateStr", Toast.LENGTH_SHORT).show()
                     }
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
@@ -277,28 +307,103 @@ fun MapScreen() {
 fun SettingsScreen() {
     var currentSubScreen by remember { mutableStateOf("main") }
 
-    if (currentSubScreen == "main") {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Text("Ayarlar", style = MaterialTheme.typography.headlineMedium)
-            Divider()
-            
-            ListItem(
-                headlineContent = { Text("İzinler") },
-                supportingContent = { Text("GPS, Pil ve Otomatik Başlatma detayları") },
-                modifier = Modifier.clickable { currentSubScreen = "permissions" }
-            )
-            Divider()
-            ListItem(headlineContent = { Text("Yer İşaretleri") }, modifier = Modifier.clickable { })
-            ListItem(headlineContent = { Text("Geçmiş Rotalar") }, modifier = Modifier.clickable { })
-            ListItem(headlineContent = { Text("Rota Ayarları") }, modifier = Modifier.clickable { })
+    when (currentSubScreen) {
+        "main" -> {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text("Ayarlar", style = MaterialTheme.typography.headlineMedium)
+                Divider()
+                
+                ListItem(
+                    headlineContent = { Text("İzinler") },
+                    supportingContent = { Text("GPS, Pil ve Otomatik Başlatma detayları") },
+                    modifier = Modifier.clickable { currentSubScreen = "permissions" }
+                )
+                Divider()
+                ListItem(headlineContent = { Text("Yer İşaretleri") }, modifier = Modifier.clickable { })
+                ListItem(
+                    headlineContent = { Text("Geçmiş Rotalar") },
+                    supportingContent = { Text("Kaydedilen rotaları görüntüle") },
+                    modifier = Modifier.clickable { currentSubScreen = "past_routes" }
+                )
+                Divider()
+                ListItem(headlineContent = { Text("Rota Ayarları") }, modifier = Modifier.clickable { })
+            }
         }
-    } else if (currentSubScreen == "permissions") {
-        PermissionsDetailScreen(onBack = { currentSubScreen = "main" })
+        "permissions" -> {
+            PermissionsDetailScreen(onBack = { currentSubScreen = "main" })
+        }
+        "past_routes" -> {
+            PastRoutesScreen(onBack = { currentSubScreen = "main" })
+        }
+    }
+}
+
+@Composable
+fun PastRoutesScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
+    val prefs = context.getSharedPreferences("harita_prefs", Context.MODE_PRIVATE)
+    val jsonStr = prefs.getString("saved_routes", "[]")
+    
+    val routeList = remember {
+        mutableStateListOf<Pair<String, Int>>().apply {
+            try {
+                val arr = org.json.JSONArray(jsonStr)
+                for (i in 0 until arr.length()) {
+                    val obj = arr.getJSONObject(i)
+                    val title = obj.getString("title")
+                    val pointsCount = obj.getJSONArray("points").length()
+                    add(Pair(title, pointsCount))
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .clickable(onClick = onBack)
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp)
+            ) {
+                Text("< Geri", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                Spacer(modifier = Modifier.width(16.dp))
+                Text("Geçmiş Rotalar", style = MaterialTheme.typography.headlineMedium)
+            }
+        }
+        item { Divider() }
+
+        if (routeList.isEmpty()) {
+            item {
+                Text("Henüz kaydedilmiş rota bulunmuyor.", color = Color.Gray)
+            }
+        } else {
+            items(routeList) { route ->
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(route.first, style = MaterialTheme.typography.titleMedium)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text("GPS Nokta Sayısı: ${route.second}", style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
+                    }
+                }
+            }
+        }
     }
 }
 
