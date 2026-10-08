@@ -34,9 +34,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.navigation.compose.*
 import org.osmdroid.config.Configuration
-import org.osmdroid.tileprovider.tilesource.OnlineTileSourceBase
+import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
-import org.osmdroid.util.MapTileIndex
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polyline
@@ -60,7 +59,6 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-// İşaretçi ikonunu küçültmek için yardımcı fonksiyon
 fun createSmallMarkerIcon(context: Context, resId: Int, color: Int): android.graphics.drawable.Drawable {
     val drawable = ContextCompat.getDrawable(context, resId)?.mutate()!!
     drawable.setTint(color)
@@ -146,23 +144,13 @@ fun MapScreen() {
         AndroidView(
             factory = { ctx ->
                 MapView(ctx).apply {
-                    val esriSatellite = object : OnlineTileSourceBase(
-                        "EsriSatellite", 0, 19, 256, "", arrayOf("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/")
-                    ) {
-                        override fun getTileURLString(pMapTileIndex: Long): String {
-                            val zoom = MapTileIndex.getZoom(pMapTileIndex)
-                            val y = MapTileIndex.getY(pMapTileIndex)
-                            val x = MapTileIndex.getX(pMapTileIndex)
-                            return "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/$zoom/$y/$x"
-                        }
-                    }
-                    
-                    setTileSource(esriSatellite)
+                    // Keskin ve piksellenmeyen OpenStreetMap (MAPNIK) katmanı
+                    setTileSource(TileSourceFactory.MAPNIK)
                     setMultiTouchControls(true)
                     setBuiltInZoomControls(false)
                     
                     setMinZoomLevel(4.0)
-                    setMaxZoomLevel(18.5)
+                    setMaxZoomLevel(19.0)
                     controller.setZoom(9.0)
                     
                     val rotationGestureOverlay = RotationGestureOverlay(this).apply {
