@@ -128,7 +128,6 @@ fun MapScreen() {
         AndroidView(
             factory = { ctx ->
                 MapView(ctx).apply {
-                    // Yüksek Çözünürlüklü Esri Net Uydu Haritası
                     val esriSatellite = object : OnlineTileSourceBase(
                         "EsriSatellite", 0, 19, 256, "", arrayOf("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/")
                     ) {
@@ -143,7 +142,12 @@ fun MapScreen() {
                     setTileSource(esriSatellite)
                     setMultiTouchControls(true)
                     setBuiltInZoomControls(false)
-                    controller.setZoom(19.0)
+                    
+                    setMinZoomLevel(4.0)
+                    setMaxZoomLevel(17.5)
+                    
+                    // İlk açılış 50 km görünüm (Zoom 9.0)
+                    controller.setZoom(9.0)
                     
                     val provider = GpsMyLocationProvider(ctx)
                     val overlay = MyLocationNewOverlay(provider, this)
@@ -153,7 +157,7 @@ fun MapScreen() {
                         post {
                             overlay.myLocation?.let {
                                 controller.animateTo(it)
-                                controller.setZoom(19.0)
+                                controller.setZoom(9.0) // İlk açılışta 50 km ve konum ortalı
                             }
                         }
                     }
@@ -166,14 +170,14 @@ fun MapScreen() {
             modifier = Modifier.fillMaxSize()
         )
 
-        // Konuma Git Butonu
+        // Konum Butonu: Basıldığında 500 mt yaklaşır ve konumu ortalar (Zoom 17.0)
         FloatingActionButton(
             onClick = { 
                 myLocationOverlay?.let { overlay ->
                     val myLoc = overlay.myLocation
                     if (myLoc != null) {
                         mapViewInstance?.controller?.animateTo(myLoc)
-                        mapViewInstance?.controller?.setZoom(19.0)
+                        mapViewInstance?.controller?.setZoom(17.0) // 500 mt
                     } else {
                         Toast.makeText(context, "Konum aranıyor, GPS açık olduğundan emin olun...", Toast.LENGTH_SHORT).show()
                     }
