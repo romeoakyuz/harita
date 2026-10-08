@@ -45,8 +45,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // OpenStreetMap sunucularından engellenmemek için User-Agent eklendi
-        Configuration.getInstance().userAgentValue = applicationContext.packageName
+        Configuration.getInstance().userAgentValue = "HaritaApp/1.0"
         Configuration.getInstance().load(
             applicationContext,
             applicationContext.getSharedPreferences("osmdroid_prefs", Context.MODE_PRIVATE)
@@ -95,8 +94,6 @@ fun RouteTrackerApp() {
 @Composable
 fun MapScreen() {
     val context = LocalContext.current
-    // Artık başlangıçta Uydu değil, Normal görünüm (false)
-    var isSatellite by remember { mutableStateOf(false) }
     var isTracking by remember { mutableStateOf(false) }
     
     var mapViewInstance by remember { mutableStateOf<MapView?>(null) }
@@ -130,49 +127,32 @@ fun MapScreen() {
         AndroidView(
             factory = { ctx ->
                 MapView(ctx).apply {
-                    // Normal görünüm ile başla
-                    setTileSource(TileSourceFactory.MAPNIK)
+                    // Bloklanma sorununu aşmak için standart Wikimedia harita katmanı kullanıldı
+                    setTileSource(TileSourceFactory.WIKIMEDIA)
                     setMultiTouchControls(true)
                     setBuiltInZoomControls(false)
-                    
-                    // Yakınlığı 19.0 (Yaklaşık 500 mt yükseklik) olarak ayarlandı
                     controller.setZoom(19.0)
                     
                     val provider = GpsMyLocationProvider(ctx)
                     val overlay = MyLocationNewOverlay(provider, this)
                     overlay.enableMyLocation()
                     
-                    // GPS ilk konumu bulduğu an haritayı oraya merkezle
                     overlay.runOnFirstFix {
                         post {
-                            controller.animateTo(overlay.myLocation)
+                            overlay.myLocation?.let {
+                                controller.animateTo(it)
+                                controller.setZoom(19.0)
+                            }
                         }
                     }
                     
                     overlays.add(overlay)
                     myLocationOverlay = overlay
-                    
                     mapViewInstance = this
                 }
             },
             modifier = Modifier.fillMaxSize()
         )
-        
-        Button(
-            onClick = { 
-                isSatellite = !isSatellite
-                mapViewInstance?.let { map ->
-                    if (isSatellite) {
-                        map.setTileSource(TileSourceFactory.USGS_SAT)
-                    } else {
-                        map.setTileSource(TileSourceFactory.MAPNIK)
-                    }
-                }
-            },
-            modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
-        ) {
-            Text(if (isSatellite) "Normale Geç" else "Uyduya Geç")
-        }
 
         FloatingActionButton(
             onClick = { 
@@ -210,7 +190,6 @@ fun MapScreen() {
                     }
 
                     isTracking = true
-                    
                     mapViewInstance?.overlays?.removeAll { it is Marker || it is Polyline }
 
                     val polyline = Polyline().apply {
