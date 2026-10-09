@@ -5,6 +5,10 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.location.Location
 import android.location.LocationManager
 import android.net.Uri
@@ -90,6 +94,26 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+// Dururken kullanılacak olan Mavi Yuvarlak Nokta
+fun createBlueDot(context: Context): android.graphics.Bitmap {
+    val sizePx = (30 * context.resources.displayMetrics.density).toInt()
+    val bitmap = android.graphics.Bitmap.createBitmap(sizePx, sizePx, android.graphics.Bitmap.Config.ARGB_8888)
+    val canvas = android.graphics.Canvas(bitmap)
+    val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+
+    // Beyaz Kenarlık
+    paint.color = android.graphics.Color.WHITE
+    paint.style = android.graphics.Paint.Style.FILL
+    canvas.drawCircle(sizePx / 2f, sizePx / 2f, sizePx / 2f, paint)
+
+    // Mavi İç
+    paint.color = android.graphics.Color.BLUE
+    canvas.drawCircle(sizePx / 2f, sizePx / 2f, (sizePx / 2f) - 6f, paint)
+
+    return bitmap
+}
+
+// Hareket Halindeyken kullanılacak Mavi Ok (Üçgen)
 fun createBlueNavArrow(context: Context): android.graphics.Bitmap {
     val sizePx = (42 * context.resources.displayMetrics.density).toInt()
     val bitmap = android.graphics.Bitmap.createBitmap(sizePx, sizePx, android.graphics.Bitmap.Config.ARGB_8888)
@@ -212,7 +236,6 @@ fun RouteTrackerApp() {
 fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
     val context = LocalContext.current
     val mapPrefs = context.getSharedPreferences("harita_prefs", Context.MODE_PRIVATE)
-    val coroutineScope = rememberCoroutineScope()
     
     var isTracking by remember { mutableStateOf(false) }
     var mapType by remember { mutableStateOf(mapPrefs.getString("map_type", "ROAD") ?: "ROAD") }
@@ -231,12 +254,33 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
     var currentZoom by remember { mutableStateOf(4.0) }
     var gpsQuality by remember { mutableStateOf("İyi") }
 
-    val recFreq = mapPrefs.getLong("record_freq", 1000L)
-    val recMin = mapPrefs.getFloat("record_min_dist", 10f)
-    val recMax = mapPrefs.getFloat("record_max_dist", 500f)
-    val recAcc = mapPrefs.getFloat("record_gps_accuracy", 50f)
-
     val locationManager = remember { context.getSystemService(Context.LOCATION_SERVICE) as LocationManager }
+    val sensorManager = remember { context.getSystemService(Context.SENSOR_SERVICE) as SensorManager }
+
+    // Pusula Sensörü için Dinleyici (Sadece yürürken haritayı çevirir)
+    var lastCompassUpdate = 0L
+    val sensorListener = remember {
+        object : SensorEventListener {
+            override fun onSensorChanged(event: SensorEvent) {
+                if (event.sensor.type == Sensor.TYPE_ORIENTATION) {
+                    val now = System.currentTimeMillis()
+                    if (now - lastCompassUpdate > 100) { // Saniyede max 10 güncelleme (performans için)
+                        lastCompassUpdate = now
+                        if (isTracking && currentSpeed <= 3f) { // Hız düşükse pusulaya göre dön
+                            mapViewInstance?.setMapOrientation(-event.values[0])
+                        }
+                    }
+                }
+            }
+            override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+        }
+    }
+
+    DisposableEffect(Unit) {
+        val sensor = sensorManager.getDefaultSensor(Sensor.TYPE_ORIENTATION)
+        sensorManager.registerListener(sensorListener, sensor, SensorManager.SENSOR_DELAY_UI)
+        onDispose { sensorManager.unregisterListener(sensorListener) }
+    }
     
     fun getBestCurrentLocation(): GeoPoint? {
         try {
@@ -278,30 +322,45 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                 }
 
                 if (isTracking) {
-                    // Accuracy filter: Eğer doğruluk belirtilen limitten kötüyse, noktayı tamamen yoksay
+                    // Ayarları anlık oku (Sabit Katı Kurallar)
+                    val recAcc = mapPrefs.getFloat("record_gps_accuracy", 50f)
+                    val recMin = mapPrefs.getFloat("record_min_dist", 10f)
+                    val recMax = mapPrefs.getFloat("record_max_dist", 500f)
+
+                    // 1. KURAL: Eğer cihazın doğruluk sapması ayarımızdan büyükse bu konumu HİÇ YAZMA, GÖRMEZDEN GEL!
                     if (location.hasAccuracy() && location.accuracy > recAcc) {
-                        return
+                        return 
                     }
 
                     val geo = GeoPoint(location.latitude, location.longitude)
-                    var ignoreLineDraw = false
-                    
-                    lastLoc?.let {
-                        val dist = it.distanceTo(location)
-                        if (dist > recMax) {
-                            ignoreLineDraw = true // Çok uzağa zıpladıysa, çizgiyi çizme ama konumu güncelle
-                        } else {
+                    var isPointValid = true
+
+                    if (lastLoc != null) {
+                        val dist = lastLoc!!.distanceTo(location)
+                        
+                        // 2. KURAL: Kapalı alanda küçük zıplamaları (jitter) önle. 10m ayarlandıysa 9m kımıldamayı kaydetmez.
+                        if (dist < recMin) {
+                            isPointValid = false
+                        } 
+                        // 3. KURAL: GPS aniden 500m öteye atarsa (Max Mesafe), bunu rotaya ekleme (hatalı veri).
+                        else if (dist > recMax) {
+                            isPointValid = false
+                        } 
+                        // Veri temizse mesafeyi topla!
+                        else {
                             totalDistance += dist
                         }
                     }
 
-                    if (!ignoreLineDraw) {
+                    // Eğer kuralları geçtiyse çizgiye ekle ve son geçerli nokta olarak kaydet.
+                    if (isPointValid) {
                         routePolyline?.addPoint(geo)
+                        lastLoc = location 
                     }
-                    
-                    lastLoc = location
 
                     mapViewInstance?.controller?.animateTo(geo)
+                    
+                    // Eğer araç hızına çıktıysa (3 km/s üstü), pusulayı bırak GPS yönüne göre dön.
                     if (currentSpeed > 3f) {
                         if (location.hasBearing()) {
                             mapViewInstance?.setMapOrientation(-location.bearing)
@@ -438,9 +497,14 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                     }
                     
                     val overlay = MyLocationNewOverlay(provider, this)
+                    
+                    // İki Farklı İkonu Entegre Etme (Dururken Nokta, Giderken Üçgen)
+                    val blueDot = createBlueDot(ctx)
                     val navArrow = createBlueNavArrow(ctx)
-                    overlay.setDirectionArrow(navArrow, navArrow)
-                    overlay.setPersonIcon(navArrow)
+                    // personBitmap: Sabit ikon (nokta) | directionArrowBitmap: Hareketli ikon (üçgen)
+                    overlay.setDirectionArrow(blueDot, navArrow)
+                    overlay.setPersonIcon(blueDot) 
+                    
                     overlay.enableMyLocation()
                     
                     overlay.runOnFirstFix {
@@ -607,10 +671,13 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                         isTracking = true
                         elapsedSeconds = 0L
                         totalDistance = 0f
-                        lastLoc = null
-                        try { 
-                            lastLoc = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER) ?: locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
-                        } catch (e: SecurityException) { }
+                        
+                        // Son konumu zorla okuyup başlatıyoruz
+                        lastLoc = startLoc.let {
+                            val l = Location(LocationManager.GPS_PROVIDER)
+                            l.latitude = it.latitude; l.longitude = it.longitude
+                            l
+                        }
 
                         mapViewInstance?.overlays?.removeAll { it is Marker || it is Polyline }
                         val polyline = Polyline().apply { outlinePaint.color = android.graphics.Color.RED; outlinePaint.strokeWidth = 14f; addPoint(startLoc) }
@@ -626,9 +693,10 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                         mapViewInstance?.controller?.setZoom(trackZoom) 
                         mapViewInstance?.invalidate()
 
+                        val recFreq = mapPrefs.getLong("record_freq", 1000L)
                         try { 
-                            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, recFreq, recMin, locationListener) 
-                            locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, recFreq, recMin, locationListener)
+                            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, recFreq, 0f, locationListener) 
+                            locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, recFreq, 0f, locationListener)
                         } catch (e: SecurityException) { }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary), modifier = Modifier.height(50.dp).width(160.dp)
