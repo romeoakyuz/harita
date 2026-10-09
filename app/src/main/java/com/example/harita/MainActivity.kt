@@ -162,6 +162,13 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
     val locationListener = remember {
         object : android.location.LocationListener {
             override fun onLocationChanged(location: android.location.Location) {
+                // Arka planda son konumu kaydet (Bir sonraki açılışta bölgeyi hatırlamak için)
+                context.getSharedPreferences("harita_prefs", Context.MODE_PRIVATE)
+                    .edit()
+                    .putFloat("last_lat", location.latitude.toFloat())
+                    .putFloat("last_lon", location.longitude.toFloat())
+                    .apply()
+
                 if (isTracking) {
                     val geo = GeoPoint(location.latitude, location.longitude)
                     routePolyline?.addPoint(geo)
@@ -261,7 +268,23 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                     tilesScaleFactor = 1.5f 
                     setMinZoomLevel(4.0)
                     setMaxZoomLevel(22.0)
-                    controller.setZoom(9.0)
+                    
+                    // --- İLK AÇILIŞ VE KONUM HAFIZASI ---
+                    val mapPrefs = ctx.getSharedPreferences("harita_prefs", Context.MODE_PRIVATE)
+                    val isFirstLaunch = mapPrefs.getBoolean("is_first_launch", true)
+                    
+                    // Varsayılan olarak Türkiye'nin Merkezi (Enlem: 39.0, Boylam: 35.0)
+                    val lastLat = mapPrefs.getFloat("last_lat", 39.0f)
+                    val lastLon = mapPrefs.getFloat("last_lon", 35.0f)
+                    
+                    // Başlangıçta Zoom 5.0 ve Hafızadaki Bölgeye Ortalama
+                    setExpectedCenter(GeoPoint(lastLat.toDouble(), lastLon.toDouble()))
+                    controller.setZoom(5.0)
+                    
+                    if (isFirstLaunch) {
+                        mapPrefs.edit().putBoolean("is_first_launch", false).apply()
+                    }
+                    // -------------------------------------
                     
                     val rotationGestureOverlay = RotationGestureOverlay(this).apply { isEnabled = true }
                     overlays.add(rotationGestureOverlay)
@@ -270,13 +293,15 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                     val overlay = MyLocationNewOverlay(provider, this)
                     overlay.enableMyLocation()
                     
+                    // Konum ilk bulunduğunda sadece konumu hafızaya kaydet, kamerayı zıplatma
                     overlay.runOnFirstFix {
                         post {
-                            if (pastRouteIndex < 0) {
-                                overlay.myLocation?.let {
-                                    controller.animateTo(it)
-                                    controller.setZoom(14.0)
-                                }
+                            overlay.myLocation?.let {
+                                val prefs = ctx.getSharedPreferences("harita_prefs", Context.MODE_PRIVATE)
+                                prefs.edit()
+                                    .putFloat("last_lat", it.latitude.toFloat())
+                                    .putFloat("last_lon", it.longitude.toFloat())
+                                    .apply()
                             }
                         }
                     }
@@ -336,13 +361,14 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
             }
         }
 
+        // Konumumu Bul (Sağ Alt Buton)
         FloatingActionButton(
             onClick = { 
                 myLocationOverlay?.let { overlay ->
                     val myLoc = overlay.myLocation
                     if (myLoc != null) {
                         mapViewInstance?.controller?.animateTo(myLoc)
-                        mapViewInstance?.controller?.setZoom(19.0)
+                        mapViewInstance?.controller?.setZoom(19.0) // Beni bul butonunda 19'a kadar yakınlaş
                     } else {
                         Toast.makeText(context, "Konum aranıyor, GPS açık olduğundan emin olun...", Toast.LENGTH_SHORT).show()
                     }
@@ -353,6 +379,7 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
             Icon(Icons.Default.LocationOn, contentDescription = "Konumuma Git")
         }
 
+        // Başlat ve Bitir Butonları
         Row(
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 32.dp).fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly
@@ -371,7 +398,7 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                         return@Button
                     }
 
-                    onClearPastRoute() // Yeni kayıt başlarken eski gösterimi kapat
+                    onClearPastRoute() 
                     
                     isTracking = true
                     elapsedSeconds = 0L
@@ -401,8 +428,9 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                     mapViewInstance?.overlays?.add(startMarker)
                     startMarker.showInfoWindow()
                     
+                    // KAYIT BAŞLATILDIĞINDA 10.0 ZOOM SEVİYESİNE GEÇ
                     mapViewInstance?.controller?.animateTo(startLoc)
-                    mapViewInstance?.controller?.setZoom(19.0)
+                    mapViewInstance?.controller?.setZoom(10.0)
                     mapViewInstance?.invalidate()
 
                     try {
