@@ -161,6 +161,7 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
     
     var currentZoom by remember { mutableStateOf(5.0) }
     var currentAltitude by remember { mutableStateOf(0.0) }
+    var currentSpeed by remember { mutableStateOf(0f) } // Hız değişkeni eklendi
 
     val locationManager = remember { context.getSystemService(Context.LOCATION_SERVICE) as android.location.LocationManager }
     
@@ -192,7 +193,6 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
         }
     }
 
-    // Ayarlardan harita tipi değiştiğinde hemen uygula
     LaunchedEffect(Unit) {
         mapType = mapPrefs.getString("map_type", "ROAD") ?: "ROAD"
     }
@@ -208,6 +208,9 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
             }
             myLocationOverlay?.lastFix?.let { fix ->
                 currentAltitude = fix.altitude
+                currentSpeed = if (fix.hasSpeed()) fix.speed * 3.6f else 0f // m/s'yi km/s'ye çevir
+            } ?: run {
+                currentSpeed = 0f
             }
         }
     }
@@ -323,6 +326,38 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
             modifier = Modifier.fillMaxSize()
         )
 
+        // Sol Üst: Hız Göstergesi ve Temizle Butonu
+        Column(
+            modifier = Modifier.align(Alignment.TopStart).padding(top = 16.dp, start = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f)),
+                shape = RoundedCornerShape(8.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            ) {
+                Text(
+                    text = "Hız: ${String.format("%.1f", currentSpeed)} km/s",
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            if (pastRouteIndex >= 0) {
+                Button(
+                    onClick = { 
+                        onClearPastRoute()
+                        mapViewInstance?.overlays?.removeAll { it is Polyline || (it is Marker && it.title != "Start" && it.title != "Stop") }
+                        mapViewInstance?.invalidate()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Haritayı Temizle")
+                }
+            }
+        }
+
         // Sağ Üst: Canlı Rakım ve Zoom Göstergesi
         Card(
             modifier = Modifier.align(Alignment.TopEnd).padding(top = 16.dp, end = 16.dp),
@@ -333,20 +368,6 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
             Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), horizontalAlignment = Alignment.End) {
                 Text("Rakım: ${currentAltitude.toInt()} m", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text("Zoom: ${String.format("%.1f", currentZoom)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-
-        if (pastRouteIndex >= 0) {
-            Button(
-                onClick = { 
-                    onClearPastRoute()
-                    mapViewInstance?.overlays?.removeAll { it is Polyline || (it is Marker && it.title != "Start" && it.title != "Stop") }
-                    mapViewInstance?.invalidate()
-                },
-                modifier = Modifier.align(Alignment.TopStart).padding(top = 16.dp, start = 16.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-            ) {
-                Text("Haritayı Temizle")
             }
         }
 
@@ -364,13 +385,14 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
             }
         }
 
+        // Konumuma Git Butonu (Zoom 15.0)
         FloatingActionButton(
             onClick = { 
                 myLocationOverlay?.let { overlay ->
                     val myLoc = overlay.myLocation
                     if (myLoc != null) {
                         mapViewInstance?.controller?.animateTo(myLoc)
-                        mapViewInstance?.controller?.setZoom(19.0)
+                        mapViewInstance?.controller?.setZoom(15.0) // Zoom 15.0 olarak güncellendi
                     } else {
                         Toast.makeText(context, "Konum aranıyor, GPS açık olduğundan emin olun...", Toast.LENGTH_SHORT).show()
                     }
@@ -416,8 +438,9 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                     mapViewInstance?.overlays?.add(startMarker)
                     startMarker.showInfoWindow()
                     
+                    // Kayıt Başlatıldığında Zoom 18.0 Seviyesi
                     mapViewInstance?.controller?.animateTo(startLoc)
-                    mapViewInstance?.controller?.setZoom(10.0)
+                    mapViewInstance?.controller?.setZoom(18.0) 
                     mapViewInstance?.invalidate()
 
                     try { locationManager.requestLocationUpdates(android.location.LocationManager.GPS_PROVIDER, 2000L, 2f, locationListener) } catch (e: SecurityException) { }
@@ -524,7 +547,7 @@ fun MapTypeScreen(onBack: () -> Unit) {
                 trailingContent = { if (selectedType == "HYBRID") Icon(Icons.Default.CheckCircle, "", tint = Color.Green) },
                 modifier = Modifier.clickable {
                     selectedType = "HYBRID"
-                    prefs.edit().putString("map_type", "HY बुन्देल").apply()
+                    prefs.edit().putString("map_type", "HYBRID").apply()
                 }
             )
         }
