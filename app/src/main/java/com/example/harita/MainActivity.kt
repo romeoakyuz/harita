@@ -145,26 +145,29 @@ fun RouteTrackerApp() {
 @Composable
 fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
     val context = LocalContext.current
+    val mapPrefs = context.getSharedPreferences("harita_prefs", Context.MODE_PRIVATE)
+    
     var isTracking by remember { mutableStateOf(false) }
-    var mapType by remember { mutableStateOf("ROAD") }
+    var mapType by remember { mutableStateOf(mapPrefs.getString("map_type", "ROAD") ?: "ROAD") }
     
     var mapViewInstance by remember { mutableStateOf<MapView?>(null) }
     var myLocationOverlay by remember { mutableStateOf<MyLocationNewOverlay?>(null) }
     var routePolyline by remember { mutableStateOf<Polyline?>(null) }
 
-    // Takip Verileri
+    // Takip ve Canlı Bilgi Verileri
     var elapsedSeconds by remember { mutableStateOf(0L) }
     var totalDistance by remember { mutableStateOf(0f) }
     var lastLoc by remember { mutableStateOf<android.location.Location?>(null) }
+    
+    var currentZoom by remember { mutableStateOf(5.0) }
+    var currentAltitude by remember { mutableStateOf(0.0) }
 
     val locationManager = remember { context.getSystemService(Context.LOCATION_SERVICE) as android.location.LocationManager }
     
     val locationListener = remember {
         object : android.location.LocationListener {
             override fun onLocationChanged(location: android.location.Location) {
-                // Arka planda son konumu kaydet (Bir sonraki açılışta bölgeyi hatırlamak için)
-                context.getSharedPreferences("harita_prefs", Context.MODE_PRIVATE)
-                    .edit()
+                mapPrefs.edit()
                     .putFloat("last_lat", location.latitude.toFloat())
                     .putFloat("last_lon", location.longitude.toFloat())
                     .apply()
@@ -173,9 +176,7 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                     val geo = GeoPoint(location.latitude, location.longitude)
                     routePolyline?.addPoint(geo)
                     
-                    lastLoc?.let {
-                        totalDistance += it.distanceTo(location)
-                    }
+                    lastLoc?.let { totalDistance += it.distanceTo(location) }
                     lastLoc = location
 
                     mapViewInstance?.controller?.animateTo(geo)
@@ -191,11 +192,22 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
         }
     }
 
+    // Ayarlardan harita tipi değiştiğinde hemen uygula
+    LaunchedEffect(Unit) {
+        mapType = mapPrefs.getString("map_type", "ROAD") ?: "ROAD"
+    }
+
+    // Sayaç ve Canlı Harita Bilgileri Güncelleyicisi
     LaunchedEffect(isTracking) {
-        if (isTracking) {
-            while (true) {
-                delay(1000L)
-                elapsedSeconds++
+        while (true) {
+            delay(1000L)
+            if (isTracking) elapsedSeconds++
+            
+            mapViewInstance?.let { view ->
+                currentZoom = view.zoomLevelDouble
+            }
+            myLocationOverlay?.lastFix?.let { fix ->
+                currentAltitude = fix.altitude
             }
         }
     }
@@ -206,11 +218,9 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
         }
     }
 
-    // Geçmiş rotayı haritada gösterme
     LaunchedEffect(pastRouteIndex) {
         if (pastRouteIndex >= 0) {
-            val prefs = context.getSharedPreferences("harita_prefs", Context.MODE_PRIVATE)
-            val jsonStr = prefs.getString("saved_routes", "[]")
+            val jsonStr = mapPrefs.getString("saved_routes", "[]")
             val arr = org.json.JSONArray(jsonStr)
             if (pastRouteIndex < arr.length()) {
                 val routeObj = arr.getJSONObject(pastRouteIndex)
@@ -269,22 +279,16 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                     setMinZoomLevel(4.0)
                     setMaxZoomLevel(22.0)
                     
-                    // --- İLK AÇILIŞ VE KONUM HAFIZASI ---
-                    val mapPrefs = ctx.getSharedPreferences("harita_prefs", Context.MODE_PRIVATE)
                     val isFirstLaunch = mapPrefs.getBoolean("is_first_launch", true)
-                    
-                    // Varsayılan olarak Türkiye'nin Merkezi (Enlem: 39.0, Boylam: 35.0)
                     val lastLat = mapPrefs.getFloat("last_lat", 39.0f)
                     val lastLon = mapPrefs.getFloat("last_lon", 35.0f)
                     
-                    // Başlangıçta Zoom 5.0 ve Hafızadaki Bölgeye Ortalama
                     setExpectedCenter(GeoPoint(lastLat.toDouble(), lastLon.toDouble()))
                     controller.setZoom(5.0)
                     
                     if (isFirstLaunch) {
                         mapPrefs.edit().putBoolean("is_first_launch", false).apply()
                     }
-                    // -------------------------------------
                     
                     val rotationGestureOverlay = RotationGestureOverlay(this).apply { isEnabled = true }
                     overlays.add(rotationGestureOverlay)
@@ -293,12 +297,10 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                     val overlay = MyLocationNewOverlay(provider, this)
                     overlay.enableMyLocation()
                     
-                    // Konum ilk bulunduğunda sadece konumu hafızaya kaydet, kamerayı zıplatma
                     overlay.runOnFirstFix {
                         post {
                             overlay.myLocation?.let {
-                                val prefs = ctx.getSharedPreferences("harita_prefs", Context.MODE_PRIVATE)
-                                prefs.edit()
+                                mapPrefs.edit()
                                     .putFloat("last_lat", it.latitude.toFloat())
                                     .putFloat("last_lon", it.longitude.toFloat())
                                     .apply()
@@ -321,17 +323,19 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
             modifier = Modifier.fillMaxSize()
         )
 
-        // Uydu / Yol Seçimi Butonu
-        Button(
-            onClick = { mapType = if (mapType == "ROAD") "HYBRID" else "ROAD" },
+        // Sağ Üst: Canlı Rakım ve Zoom Göstergesi
+        Card(
             modifier = Modifier.align(Alignment.TopEnd).padding(top = 16.dp, end = 16.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurfaceVariant),
-            elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp)
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f)),
+            shape = RoundedCornerShape(8.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
         ) {
-            Text(if (mapType == "ROAD") "Uydu Görünümü" else "Yol Görünümü")
+            Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), horizontalAlignment = Alignment.End) {
+                Text("Rakım: ${currentAltitude.toInt()} m", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Zoom: ${String.format("%.1f", currentZoom)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
 
-        // Geçmiş Rota Temizle Butonu
         if (pastRouteIndex >= 0) {
             Button(
                 onClick = { 
@@ -346,10 +350,9 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
             }
         }
 
-        // Canlı Takip Bilgi Paneli (Süre ve Mesafe)
         if (isTracking) {
             Card(
-                modifier = Modifier.align(Alignment.TopCenter).padding(top = 70.dp),
+                modifier = Modifier.align(Alignment.TopCenter).padding(top = 80.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
                 shape = RoundedCornerShape(16.dp),
                 elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
@@ -361,14 +364,13 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
             }
         }
 
-        // Konumumu Bul (Sağ Alt Buton)
         FloatingActionButton(
             onClick = { 
                 myLocationOverlay?.let { overlay ->
                     val myLoc = overlay.myLocation
                     if (myLoc != null) {
                         mapViewInstance?.controller?.animateTo(myLoc)
-                        mapViewInstance?.controller?.setZoom(19.0) // Beni bul butonunda 19'a kadar yakınlaş
+                        mapViewInstance?.controller?.setZoom(19.0)
                     } else {
                         Toast.makeText(context, "Konum aranıyor, GPS açık olduğundan emin olun...", Toast.LENGTH_SHORT).show()
                     }
@@ -379,7 +381,6 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
             Icon(Icons.Default.LocationOn, contentDescription = "Konumuma Git")
         }
 
-        // Başlat ve Bitir Butonları
         Row(
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 32.dp).fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly
@@ -388,56 +389,38 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                 onClick = { 
                     val hasPerm = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
                     if (!hasPerm) {
-                        Toast.makeText(context, "Önce Ayarlar > İzinler bölümünden Konum izni verin!", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Önce İzinler bölümünden Konum izni verin!", Toast.LENGTH_SHORT).show()
                         return@Button
                     }
-                    
                     val startLoc = myLocationOverlay?.myLocation
                     if (startLoc == null) {
-                        Toast.makeText(context, "Konum henüz bulunamadı, lütfen bekleyin.", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Konum henüz bulunamadı...", Toast.LENGTH_SHORT).show()
                         return@Button
                     }
 
                     onClearPastRoute() 
-                    
                     isTracking = true
                     elapsedSeconds = 0L
                     totalDistance = 0f
                     lastLoc = null
 
-                    try {
-                        lastLoc = locationManager.getLastKnownLocation(android.location.LocationManager.GPS_PROVIDER)
-                    } catch (e: SecurityException) { }
+                    try { lastLoc = locationManager.getLastKnownLocation(android.location.LocationManager.GPS_PROVIDER) } catch (e: SecurityException) { }
 
                     mapViewInstance?.overlays?.removeAll { it is Marker || it is Polyline }
 
-                    val polyline = Polyline().apply {
-                        outlinePaint.color = android.graphics.Color.RED
-                        outlinePaint.strokeWidth = 14f
-                        addPoint(startLoc)
-                    }
+                    val polyline = Polyline().apply { outlinePaint.color = android.graphics.Color.RED; outlinePaint.strokeWidth = 14f; addPoint(startLoc) }
                     mapViewInstance?.overlays?.add(polyline)
                     routePolyline = polyline
 
-                    val startMarker = Marker(mapViewInstance).apply {
-                        position = startLoc
-                        title = "Start"
-                        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                        icon = createSmallMarkerIcon(context, android.R.drawable.presence_online, android.graphics.Color.GREEN)
-                    }
+                    val startMarker = Marker(mapViewInstance).apply { position = startLoc; title = "Start"; setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM); icon = createSmallMarkerIcon(context, android.R.drawable.presence_online, android.graphics.Color.GREEN) }
                     mapViewInstance?.overlays?.add(startMarker)
                     startMarker.showInfoWindow()
                     
-                    // KAYIT BAŞLATILDIĞINDA 10.0 ZOOM SEVİYESİNE GEÇ
                     mapViewInstance?.controller?.animateTo(startLoc)
                     mapViewInstance?.controller?.setZoom(10.0)
                     mapViewInstance?.invalidate()
 
-                    try {
-                        locationManager.requestLocationUpdates(android.location.LocationManager.GPS_PROVIDER, 2000L, 2f, locationListener)
-                    } catch (e: SecurityException) {
-                        e.printStackTrace()
-                    }
+                    try { locationManager.requestLocationUpdates(android.location.LocationManager.GPS_PROVIDER, 2000L, 2f, locationListener) } catch (e: SecurityException) { }
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                 enabled = !isTracking
@@ -455,12 +438,7 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                     val endLoc = myLocationOverlay?.myLocation ?: points?.lastOrNull()
                     
                     if (endLoc != null) {
-                        val endMarker = Marker(mapViewInstance).apply {
-                            position = endLoc
-                            title = "Stop"
-                            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                            icon = createSmallMarkerIcon(context, android.R.drawable.presence_busy, android.graphics.Color.RED)
-                        }
+                        val endMarker = Marker(mapViewInstance).apply { position = endLoc; title = "Stop"; setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM); icon = createSmallMarkerIcon(context, android.R.drawable.presence_busy, android.graphics.Color.RED) }
                         mapViewInstance?.overlays?.add(endMarker)
                         endMarker.showInfoWindow()
                         mapViewInstance?.invalidate()
@@ -469,26 +447,19 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                     if (!points.isNullOrEmpty()) {
                         val dateFormat = java.text.SimpleDateFormat("dd.MM.yyyy HH:mm", java.util.Locale.getDefault())
                         val dateStr = dateFormat.format(java.util.Date())
-                        
                         val prefs = context.getSharedPreferences("harita_prefs", Context.MODE_PRIVATE)
-                        val jsonStr = prefs.getString("saved_routes", "[]")
-                        val array = org.json.JSONArray(jsonStr)
+                        val array = org.json.JSONArray(prefs.getString("saved_routes", "[]"))
                         
                         val newRoute = org.json.JSONObject().apply {
                             put("title", "Rota - $dateStr")
                             put("date", dateStr)
                             val pts = org.json.JSONArray()
-                            for (p in points) {
-                                pts.put(org.json.JSONObject().apply {
-                                    put("lat", p.latitude)
-                                    put("lon", p.longitude)
-                                })
-                            }
+                            for (p in points) pts.put(org.json.JSONObject().apply { put("lat", p.latitude); put("lon", p.longitude) })
                             put("points", pts)
                         }
                         array.put(newRoute)
                         prefs.edit().putString("saved_routes", array.toString()).apply()
-                        Toast.makeText(context, "Rota kaydedildi: $dateStr", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Rota kaydedildi!", Toast.LENGTH_SHORT).show()
                     }
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
@@ -509,13 +480,54 @@ fun SettingsScreen(onShowRouteOnMap: (Int) -> Unit) {
             Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Ayarlar", style = MaterialTheme.typography.headlineMedium)
                 Divider()
-                ListItem(headlineContent = { Text("İzinler") }, supportingContent = { Text("GPS, Pil ve Otomatik Başlatma detayları") }, modifier = Modifier.clickable { currentSubScreen = "permissions" })
+                ListItem(headlineContent = { Text("Harita Görünümü") }, supportingContent = { Text("Yol veya Uydu görünümü seçin") }, modifier = Modifier.clickable { currentSubScreen = "map_type" })
                 Divider()
-                ListItem(headlineContent = { Text("Geçmiş Rotalar") }, supportingContent = { Text("Kaydedilen rotaları görüntüle, sil veya haritada aç") }, modifier = Modifier.clickable { currentSubScreen = "past_routes" })
+                ListItem(headlineContent = { Text("İzinler") }, supportingContent = { Text("GPS, Pil ve Otomatik Başlatma") }, modifier = Modifier.clickable { currentSubScreen = "permissions" })
+                Divider()
+                ListItem(headlineContent = { Text("Geçmiş Rotalar") }, supportingContent = { Text("Kaydedilen rotaları yönetin") }, modifier = Modifier.clickable { currentSubScreen = "past_routes" })
             }
         }
+        "map_type" -> { MapTypeScreen(onBack = { currentSubScreen = "main" }) }
         "permissions" -> { PermissionsDetailScreen(onBack = { currentSubScreen = "main" }) }
         "past_routes" -> { PastRoutesScreen(onBack = { currentSubScreen = "main" }, onShowRouteOnMap = onShowRouteOnMap) }
+    }
+}
+
+@Composable
+fun MapTypeScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
+    val prefs = context.getSharedPreferences("harita_prefs", Context.MODE_PRIVATE)
+    var selectedType by remember { mutableStateOf(prefs.getString("map_type", "ROAD") ?: "ROAD") }
+
+    LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable(onClick = onBack).fillMaxWidth().padding(vertical = 4.dp)) {
+                Text("< Geri", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                Spacer(modifier = Modifier.width(16.dp))
+                Text("Harita Görünümü", style = MaterialTheme.typography.headlineMedium)
+            }
+        }
+        item { Divider() }
+        item {
+            ListItem(
+                headlineContent = { Text("Yol Görünümü (Standart)") },
+                trailingContent = { if (selectedType == "ROAD") Icon(Icons.Default.CheckCircle, "", tint = Color.Green) },
+                modifier = Modifier.clickable {
+                    selectedType = "ROAD"
+                    prefs.edit().putString("map_type", "ROAD").apply()
+                }
+            )
+        }
+        item {
+            ListItem(
+                headlineContent = { Text("Uydu Görünümü (Karma)") },
+                trailingContent = { if (selectedType == "HYBRID") Icon(Icons.Default.CheckCircle, "", tint = Color.Green) },
+                modifier = Modifier.clickable {
+                    selectedType = "HYBRID"
+                    prefs.edit().putString("map_type", "HY बुन्देल").apply()
+                }
+            )
+        }
     }
 }
 
