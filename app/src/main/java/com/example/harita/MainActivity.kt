@@ -411,12 +411,14 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
             }
         }
 
-        // Konumuma Git Butonu (İlk basışta anında ve kusursuz ortalama)
+        // Konumuma Git Butonu (İlk basışta anında ve hatasız ortalama garantili)
         FloatingActionButton(
             onClick = { 
+                myLocationOverlay?.enableMyLocation()
                 val currentLoc = myLocationOverlay?.myLocation ?: run {
                     try {
                         val loc = locationManager.getLastKnownLocation(android.location.LocationManager.GPS_PROVIDER)
+                            ?: locationManager.getLastKnownLocation(android.location.LocationManager.NETWORK_PROVIDER)
                         if (loc != null) GeoPoint(loc.latitude, loc.longitude) else null
                     } catch (e: SecurityException) { null }
                 }
@@ -424,7 +426,7 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                 if (currentLoc != null) {
                     coroutineScope.launch {
                         isMapVisible = false 
-                        delay(200L)          
+                        delay(150L)          
                         
                         val locZoom = mapPrefs.getFloat("zoom_location", 15.0f).toDouble()
                         mapViewInstance?.controller?.setCenter(currentLoc) 
@@ -459,8 +461,10 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                             Toast.makeText(context, "Önce İzinler bölümünden Konum izni verin!", Toast.LENGTH_SHORT).show()
                             return@Button
                         }
+                        myLocationOverlay?.enableMyLocation()
                         val startLoc = myLocationOverlay?.myLocation ?: try {
                             val loc = locationManager.getLastKnownLocation(android.location.LocationManager.GPS_PROVIDER)
+                                ?: locationManager.getLastKnownLocation(android.location.LocationManager.NETWORK_PROVIDER)
                             if (loc != null) GeoPoint(loc.latitude, loc.longitude) else null
                         } catch (e: SecurityException) { null }
 
@@ -489,7 +493,7 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                         
                         coroutineScope.launch {
                             isMapVisible = false
-                            delay(200L)
+                            delay(150L)
                             val trackZoom = mapPrefs.getFloat("zoom_track", 18.0f).toDouble()
                             mapViewInstance?.controller?.setCenter(startLoc)
                             mapViewInstance?.controller?.setZoom(trackZoom) 
@@ -554,7 +558,6 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
 fun SettingsScreen(onShowRouteOnMap: (Int) -> Unit, onNavigateToMap: () -> Unit) {
     var currentSubScreen by remember { mutableStateOf("main") }
 
-    // Ayarlardayken ilk geri tuşunda haritaya dön, tekrar basılırsa çık
     BackHandler {
         if (currentSubScreen != "main") {
             currentSubScreen = "main"
