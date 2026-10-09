@@ -5,7 +5,6 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.location.LocationProvider
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -169,7 +168,6 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
     
     var currentAltitude by remember { mutableStateOf(0.0) }
     var currentSpeed by remember { mutableStateOf(0f) }
-    var gpsStatus by remember { mutableStateOf("Aranıyor...") }
 
     val locationManager = remember { context.getSystemService(Context.LOCATION_SERVICE) as android.location.LocationManager }
     
@@ -188,6 +186,7 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                     lastLoc?.let { totalDistance += it.distanceTo(location) }
                     lastLoc = location
 
+                    // Pürüzsüz animasyonlu takip kaydırma
                     mapViewInstance?.controller?.animateTo(geo)
                     if (location.hasBearing()) {
                         mapViewInstance?.setMapOrientation(-location.bearing)
@@ -195,15 +194,9 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                     mapViewInstance?.invalidate()
                 }
             }
-            override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {
-                gpsStatus = when (status) {
-                    LocationProvider.AVAILABLE -> "Mükemmel"
-                    LocationProvider.TEMPORARILY_UNAVAILABLE -> "Zayıf"
-                    else -> "Aranıyor..."
-                }
-            }
-            override fun onProviderEnabled(provider: String) { gpsStatus = "İyi" }
-            override fun onProviderDisabled(provider: String) { gpsStatus = "Kapalı" }
+            override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
+            override fun onProviderEnabled(provider: String) {}
+            override fun onProviderDisabled(provider: String) {}
         }
     }
 
@@ -219,7 +212,6 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
             myLocationOverlay?.lastFix?.let { fix ->
                 currentAltitude = fix.altitude
                 currentSpeed = if (fix.hasSpeed()) fix.speed * 3.6f else 0f
-                gpsStatus = "Mükemmel"
             } ?: run {
                 currentSpeed = 0f
             }
@@ -379,34 +371,7 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
             }
         }
 
-        // Üst Orta: GPS Sinyal Kalitesi Göstergesi
-        Card(
-            modifier = Modifier.align(Alignment.TopCenter).padding(top = 16.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f)),
-            shape = RoundedCornerShape(12.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(8.dp)
-                        .clip(CircleShape)
-                        .background(if (gpsStatus == "Mükemmel" || gpsStatus == "İyi") Color.Green else Color.Yellow)
-                )
-                Text(
-                    text = "GPS: $gpsStatus",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-
-        // Sağ Üst: Yalnızca Canlı Rakım Göstergesi (Zoom kaldırıldı)
+        // Sağ Üst: Yalnızca Canlı Rakım Göstergesi
         Card(
             modifier = Modifier.align(Alignment.TopEnd).padding(top = 16.dp, end = 16.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f)),
@@ -420,7 +385,7 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
 
         if (isTracking) {
             Card(
-                modifier = Modifier.align(Alignment.TopCenter).padding(top = 80.dp),
+                modifier = Modifier.align(Alignment.TopCenter).padding(top = 16.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
                 shape = RoundedCornerShape(16.dp),
                 elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
@@ -432,14 +397,14 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
             }
         }
 
-        // Konumuma Git Butonu (Ayarlardan gelen zoom değeri ile)
+        // Konumuma Git Butonu (Pürüzsüz animasyonlu geçiş)
         FloatingActionButton(
             onClick = { 
                 myLocationOverlay?.let { overlay ->
                     val myLoc = overlay.myLocation
                     if (myLoc != null) {
-                        mapViewInstance?.controller?.animateTo(myLoc)
                         val locZoom = mapPrefs.getFloat("zoom_location", 15.0f).toDouble()
+                        mapViewInstance?.controller?.animateTo(myLoc)
                         mapViewInstance?.controller?.setZoom(locZoom)
                     } else {
                         Toast.makeText(context, "Konum aranıyor, GPS açık olduğundan emin olun...", Toast.LENGTH_SHORT).show()
@@ -451,93 +416,98 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
             Icon(Icons.Default.LocationOn, contentDescription = "Konumuma Git")
         }
 
-        Row(
-            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 32.dp).fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly
+        // Tek Buton (Başlat / Bitir aynı yerde pürüzsüz çalışma)
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 32.dp)
+                .fillMaxWidth(),
+            contentAlignment = Alignment.Center
         ) {
-            Button(
-                onClick = { 
-                    val hasPerm = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
-                    if (!hasPerm) {
-                        Toast.makeText(context, "Önce İzinler bölümünden Konum izni verin!", Toast.LENGTH_SHORT).show()
-                        return@Button
-                    }
-                    val startLoc = myLocationOverlay?.myLocation
-                    if (startLoc == null) {
-                        Toast.makeText(context, "Konum henüz bulunamadı...", Toast.LENGTH_SHORT).show()
-                        return@Button
-                    }
-
-                    onClearPastRoute() 
-                    isTracking = true
-                    elapsedSeconds = 0L
-                    totalDistance = 0f
-                    lastLoc = null
-
-                    try { lastLoc = locationManager.getLastKnownLocation(android.location.LocationManager.GPS_PROVIDER) } catch (e: SecurityException) { }
-
-                    mapViewInstance?.overlays?.removeAll { it is Marker || it is Polyline }
-
-                    val polyline = Polyline().apply { outlinePaint.color = android.graphics.Color.RED; outlinePaint.strokeWidth = 14f; addPoint(startLoc) }
-                    mapViewInstance?.overlays?.add(polyline)
-                    routePolyline = polyline
-
-                    val startMarker = Marker(mapViewInstance).apply { position = startLoc; title = "Start"; setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM); icon = createSmallMarkerIcon(context, android.R.drawable.presence_online, android.graphics.Color.GREEN) }
-                    mapViewInstance?.overlays?.add(startMarker)
-                    startMarker.showInfoWindow()
-                    
-                    // Kayıt Başlatıldığında Ayarlardan Gelen Zoom Değeri
-                    val trackZoom = mapPrefs.getFloat("zoom_track", 18.0f).toDouble()
-                    mapViewInstance?.controller?.animateTo(startLoc)
-                    mapViewInstance?.controller?.setZoom(trackZoom) 
-                    mapViewInstance?.invalidate()
-
-                    try { locationManager.requestLocationUpdates(android.location.LocationManager.GPS_PROVIDER, 2000L, 2f, locationListener) } catch (e: SecurityException) { }
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                enabled = !isTracking
-            ) {
-                Text("Başlat")
-            }
-            
-            Button(
-                onClick = { 
-                    isTracking = false
-                    locationManager.removeUpdates(locationListener)
-                    mapViewInstance?.setMapOrientation(0f)
-
-                    val points = routePolyline?.actualPoints
-                    val endLoc = myLocationOverlay?.myLocation ?: points?.lastOrNull()
-                    
-                    if (endLoc != null) {
-                        val endMarker = Marker(mapViewInstance).apply { position = endLoc; title = "Stop"; setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM); icon = createSmallMarkerIcon(context, android.R.drawable.presence_busy, android.graphics.Color.RED) }
-                        mapViewInstance?.overlays?.add(endMarker)
-                        endMarker.showInfoWindow()
-                        mapViewInstance?.invalidate()
-                    }
-
-                    if (!points.isNullOrEmpty()) {
-                        val dateFormat = java.text.SimpleDateFormat("dd.MM.yyyy HH:mm", java.util.Locale.getDefault())
-                        val dateStr = dateFormat.format(java.util.Date())
-                        val prefs = context.getSharedPreferences("harita_prefs", Context.MODE_PRIVATE)
-                        val array = org.json.JSONArray(prefs.getString("saved_routes", "[]"))
-                        
-                        val newRoute = org.json.JSONObject().apply {
-                            put("title", "Rota - $dateStr")
-                            put("date", dateStr)
-                            val pts = org.json.JSONArray()
-                            for (p in points) pts.put(org.json.JSONObject().apply { put("lat", p.latitude); put("lon", p.longitude) })
-                            put("points", pts)
+            if (!isTracking) {
+                Button(
+                    onClick = { 
+                        val hasPerm = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                        if (!hasPerm) {
+                            Toast.makeText(context, "Önce İzinler bölümünden Konum izni verin!", Toast.LENGTH_SHORT).show()
+                            return@Button
                         }
-                        array.put(newRoute)
-                        prefs.edit().putString("saved_routes", array.toString()).apply()
-                        Toast.makeText(context, "Rota kaydedildi!", Toast.LENGTH_SHORT).show()
-                    }
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                enabled = isTracking
-            ) {
-                Text("Bitir")
+                        val startLoc = myLocationOverlay?.myLocation
+                        if (startLoc == null) {
+                            Toast.makeText(context, "Konum henüz bulunamadı...", Toast.LENGTH_SHORT).show()
+                            return@Button
+                        }
+
+                        onClearPastRoute() 
+                        isTracking = true
+                        elapsedSeconds = 0L
+                        totalDistance = 0f
+                        lastLoc = null
+
+                        try { lastLoc = locationManager.getLastKnownLocation(android.location.LocationManager.GPS_PROVIDER) } catch (e: SecurityException) { }
+
+                        mapViewInstance?.overlays?.removeAll { it is Marker || it is Polyline }
+
+                        val polyline = Polyline().apply { outlinePaint.color = android.graphics.Color.RED; outlinePaint.strokeWidth = 14f; addPoint(startLoc) }
+                        mapViewInstance?.overlays?.add(polyline)
+                        routePolyline = polyline
+
+                        val startMarker = Marker(mapViewInstance).apply { position = startLoc; title = "Start"; setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM); icon = createSmallMarkerIcon(context, android.R.drawable.presence_online, android.graphics.Color.GREEN) }
+                        mapViewInstance?.overlays?.add(startMarker)
+                        startMarker.showInfoWindow()
+                        
+                        val trackZoom = mapPrefs.getFloat("zoom_track", 18.0f).toDouble()
+                        mapViewInstance?.controller?.animateTo(startLoc)
+                        mapViewInstance?.controller?.setZoom(trackZoom) 
+                        mapViewInstance?.invalidate()
+
+                        try { locationManager.requestLocationUpdates(android.location.LocationManager.GPS_PROVIDER, 2000L, 2f, locationListener) } catch (e: SecurityException) { }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                    modifier = Modifier.height(50.dp).width(160.dp)
+                ) {
+                    Text("Başlat", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                }
+            } else {
+                Button(
+                    onClick = { 
+                        isTracking = false
+                        locationManager.removeUpdates(locationListener)
+                        mapViewInstance?.setMapOrientation(0f)
+
+                        val points = routePolyline?.actualPoints
+                        val endLoc = myLocationOverlay?.myLocation ?: points?.lastOrNull()
+                        
+                        if (endLoc != null) {
+                            val endMarker = Marker(mapViewInstance).apply { position = endLoc; title = "Stop"; setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM); icon = createSmallMarkerIcon(context, android.R.drawable.presence_busy, android.graphics.Color.RED) }
+                            mapViewInstance?.overlays?.add(endMarker)
+                            endMarker.showInfoWindow()
+                            mapViewInstance?.invalidate()
+                        }
+
+                        if (!points.isNullOrEmpty()) {
+                            val dateFormat = java.text.SimpleDateFormat("dd.MM.yyyy HH:mm", java.util.Locale.getDefault())
+                            val dateStr = dateFormat.format(java.util.Date())
+                            val prefs = context.getSharedPreferences("harita_prefs", Context.MODE_PRIVATE)
+                            val array = org.json.JSONArray(prefs.getString("saved_routes", "[]"))
+                            
+                            val newRoute = org.json.JSONObject().apply {
+                                put("title", "Rota - $dateStr")
+                                put("date", dateStr)
+                                val pts = org.json.JSONArray()
+                                for (p in points) pts.put(org.json.JSONObject().apply { put("lat", p.latitude); put("lon", p.longitude) })
+                                put("points", pts)
+                            }
+                            array.put(newRoute)
+                            prefs.edit().putString("saved_routes", array.toString()).apply()
+                            Toast.makeText(context, "Rota kaydedildi!", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                    modifier = Modifier.height(50.dp).width(160.dp)
+                ) {
+                    Text("Bitir", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                }
             }
         }
     }
@@ -591,7 +561,6 @@ fun ZoomSettingsScreen(onBack: () -> Unit) {
         }
         item { Divider() }
 
-        // 1. Normal Açılış Zoom
         item {
             Column {
                 Text("Normal Açılış Zoom: ${String.format("%.1f", defaultZoom)}", fontWeight = FontWeight.Bold)
@@ -605,7 +574,6 @@ fun ZoomSettingsScreen(onBack: () -> Unit) {
             }
         }
 
-        // 2. Konum (Beni Bul) Zoom
         item {
             Column {
                 Text("Konuma Git Butonu Zoom: ${String.format("%.1f", locationZoom)}", fontWeight = FontWeight.Bold)
@@ -619,7 +587,6 @@ fun ZoomSettingsScreen(onBack: () -> Unit) {
             }
         }
 
-        // 3. Kayıt Başlat Zoom
         item {
             Column {
                 Text("Kayıt Başlat Butonu Zoom: ${String.format("%.1f", trackZoom)}", fontWeight = FontWeight.Bold)
