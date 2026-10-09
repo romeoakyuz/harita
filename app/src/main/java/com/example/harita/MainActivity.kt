@@ -5,6 +5,8 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.location.Location
+import android.location.LocationManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -169,18 +171,43 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
 
     var elapsedSeconds by remember { mutableStateOf(0L) }
     var totalDistance by remember { mutableStateOf(0f) }
-    var lastLoc by remember { mutableStateOf<android.location.Location?>(null) }
+    var lastLoc by remember { mutableStateOf<Location?>(null) }
     
     var currentAltitude by remember { mutableStateOf(0.0) }
     var currentSpeed by remember { mutableStateOf(0f) }
     
     var isMapVisible by remember { mutableStateOf(true) }
 
-    val locationManager = remember { context.getSystemService(Context.LOCATION_SERVICE) as android.location.LocationManager }
+    val locationManager = remember { context.getSystemService(Context.LOCATION_SERVICE) as LocationManager }
     
+    // Hem GPS hem Şebeke (Network) destekli en güncel konumu güvenle bulan fonksiyon
+    fun getBestCurrentLocation(): GeoPoint? {
+        try {
+            val hasFine = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+            val hasCoarse = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COASE_LOCATION) == PackageManager.PERMISSION_GRANTED
+            if (!hasFine && !hasCoarse) return null
+
+            val gpsLoc = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+            val netLoc = locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+
+            val bestLoc: Location? = when {
+                gpsLoc != null && netLoc != null -> if (gpsLoc.time > netLoc.time) gpsLoc else netLoc
+                else -> gpsLoc ?: netLoc
+            }
+
+            if (bestLoc != null) {
+                return GeoPoint(bestLoc.latitude, bestLoc.longitude)
+            }
+        } catch (e: Exception) { e.printStackTrace() }
+
+        // Eğer sistemde kayıtlı son konum yoksa veya overlay yakaladıysa
+        myLocationOverlay?.myLocation?.let { return it }
+        return null
+    }
+
     val locationListener = remember {
         object : android.location.LocationListener {
-            override fun onLocationChanged(location: android.location.Location) {
+            override fun onLocationChanged(location: Location) {
                 mapPrefs.edit()
                     .putFloat("last_lat", location.latitude.toFloat())
                     .putFloat("last_lon", location.longitude.toFloat())
@@ -226,7 +253,7 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
 
     DisposableEffect(Unit) {
         onDispose {
-            locationManager.removeUpdates(locationListener)
+            try { locationManager.removeUpdates(locationListener) } catch (e: Exception) {}
         }
     }
 
@@ -313,7 +340,14 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                         val rotationGestureOverlay = RotationGestureOverlay(this).apply { isEnabled = true }
                         overlays.add(rotationGestureOverlay)
                         
-                        val provider = GpsMyLocationProvider(ctx)
+                        // Hibrit sağlayıcı (Hem GPS hem Şebeke destekli)
+                        val provider = GpsMyLocationProvider(ctx).apply {
+                            // Şebeke sağlayıcısını da etkinleştir
+                            try {
+                                addLocationSource(LocationManager.NETWORK_PROVIDER)
+                            } catch (e: Exception) {}
+                        }
+                        
                         val overlay = MyLocationNewOverlay(provider, this)
                         overlay.enableMyLocation()
                         
@@ -411,17 +445,11 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
             }
         }
 
-        // Konumuma Git Butonu (İlk basışta anında ve hatasız ortalama garantili)
+        // Konumuma Git Butonu (GPS + Şebeke Hibrit Güvenceli İlk Tıkta Ortalama)
         FloatingActionButton(
             onClick = { 
                 myLocationOverlay?.enableMyLocation()
-                val currentLoc = myLocationOverlay?.myLocation ?: run {
-                    try {
-                        val loc = locationManager.getLastKnownLocation(android.location.LocationManager.GPS_PROVIDER)
-                            ?: locationManager.getLastKnownLocation(android.location.LocationManager.NETWORK_PROVIDER)
-                        if (loc != null) GeoPoint(loc.latitude, loc.longitude) else null
-                    } catch (e: SecurityException) { null }
-                }
+                val currentLoc = getBestCurrentLocation()
 
                 if (currentLoc != null) {
                     coroutineScope.launch {
@@ -437,7 +465,7 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                         isMapVisible = true  
                     }
                 } else {
-                    Toast.makeText(context, "Konum aranıyor, GPS açık olduğundan emin olun...", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "Konum aranıyor, GPS veya internet açık olduğundan emin olun...", Toast.LENGTH_SHORT).show()
                 }
             },
             modifier = Modifier.align(Alignment.BottomEnd).padding(bottom = 100.dp, end = 16.dp)
@@ -462,11 +490,7 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                             return@Button
                         }
                         myLocationOverlay?.enableMyLocation()
-                        val startLoc = myLocationOverlay?.myLocation ?: try {
-                            val loc = locationManager.getLastKnownLocation(android.location.LocationManager.GPS_PROVIDER)
-                                ?: locationManager.getLastKnownLocation(android.location.LocationManager.NETWORK_PROVIDER)
-                            if (loc != null) GeoPoint(loc.latitude, loc.longitude) else null
-                        } catch (e: SecurityException) { null }
+                        val startLoc = getBestCurrentLocation()
 
                         if (startLoc == null) {
                             Toast.makeText(context, "Konum henüz bulunamadı...", Toast.LENGTH_SHORT).show()
@@ -479,7 +503,10 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                         totalDistance = 0f
                         lastLoc = null
 
-                        try { lastLoc = locationManager.getLastKnownLocation(android.location.LocationManager.GPS_PROVIDER) } catch (e: SecurityException) { }
+                        try { 
+                            lastLoc = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER) 
+                                ?: locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+                        } catch (e: SecurityException) { }
 
                         mapViewInstance?.overlays?.removeAll { it is Marker || it is Polyline }
 
@@ -502,7 +529,10 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                             isMapVisible = true
                         }
 
-                        try { locationManager.requestLocationUpdates(android.location.LocationManager.GPS_PROVIDER, 2000L, 2f, locationListener) } catch (e: SecurityException) { }
+                        try { 
+                            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 2000L, 2f, locationListener) 
+                            locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 2000L, 2f, locationListener)
+                        } catch (e: SecurityException) { }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                     modifier = Modifier.height(50.dp).width(160.dp)
@@ -513,7 +543,7 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                 Button(
                     onClick = { 
                         isTracking = false
-                        locationManager.removeUpdates(locationListener)
+                        try { locationManager.removeUpdates(locationListener) } catch (e: Exception) {}
                         mapViewInstance?.setMapOrientation(0f)
 
                         val points = routePolyline?.actualPoints
