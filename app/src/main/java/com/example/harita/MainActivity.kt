@@ -34,8 +34,9 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.navigation.compose.*
 import org.osmdroid.config.Configuration
-import org.osmdroid.tileprovider.tilesource.TileSourceFactory
+import org.osmdroid.tileprovider.tilesource.OnlineTileSourceBase
 import org.osmdroid.util.GeoPoint
+import org.osmdroid.util.MapTileIndex
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polyline
@@ -47,8 +48,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // OSM sunucu politikasına tam uygun benzersiz User-Agent ve iletişim bilgisi
-        Configuration.getInstance().userAgentValue = "KisiselRotaUygulamasi/1.0 (kisisel.rota@gmail.com)"
+        Configuration.getInstance().userAgentValue = "KisiselRotaUygulamasi/1.0"
         Configuration.getInstance().load(
             applicationContext,
             applicationContext.getSharedPreferences("osmdroid_prefs", Context.MODE_PRIVATE)
@@ -145,7 +145,25 @@ fun MapScreen() {
         AndroidView(
             factory = { ctx ->
                 MapView(ctx).apply {
-                    setTileSource(TileSourceFactory.MAPNIK)
+                    // API Anahtarı Olmadan Google Haritalar (Standart Yol Görünümü) Bağlantısı
+                    val googleMapSource = object : OnlineTileSourceBase(
+                        "GoogleMapsRoads", 0, 19, 256, "", 
+                        arrayOf(
+                            "https://mt0.google.com/vt/lyrs=m&hl=tr&",
+                            "https://mt1.google.com/vt/lyrs=m&hl=tr&",
+                            "https://mt2.google.com/vt/lyrs=m&hl=tr&",
+                            "https://mt3.google.com/vt/lyrs=m&hl=tr&"
+                        )
+                    ) {
+                        override fun getTileURLString(pMapTileIndex: Long): String {
+                            val zoom = MapTileIndex.getZoom(pMapTileIndex)
+                            val y = MapTileIndex.getY(pMapTileIndex)
+                            val x = MapTileIndex.getX(pMapTileIndex)
+                            return baseUrl + "x=$x&y=$y&z=$zoom"
+                        }
+                    }
+                    
+                    setTileSource(googleMapSource)
                     setMultiTouchControls(true)
                     setBuiltInZoomControls(false)
                     
