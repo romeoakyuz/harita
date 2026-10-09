@@ -174,7 +174,6 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
     var currentAltitude by remember { mutableStateOf(0.0) }
     var currentSpeed by remember { mutableStateOf(0f) }
     
-    // Solma (Fade) Efekti İçin Durum Kontrolü
     var isMapVisible by remember { mutableStateOf(true) }
 
     val locationManager = remember { context.getSystemService(Context.LOCATION_SERVICE) as android.location.LocationManager }
@@ -281,7 +280,6 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // Solma Efekti (Fade) ile Harita Görünümü
         AnimatedVisibility(
             visible = isMapVisible,
             enter = fadeIn(animationSpec = androidx.compose.animation.core.tween(300)),
@@ -296,15 +294,19 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                         setBuiltInZoomControls(false)
                         setTilesScaledToDpi(true)
                         tilesScaleFactor = 1.5f 
-                        setMinZoomLevel(4.0)
+                        
+                        // Zoom Sınırları Tamamen Kaldırıldı (Dünyayı uzaktan görmek için min 2.0 yapıldı)
+                        setMinZoomLevel(2.0)
                         setMaxZoomLevel(22.0)
                         
                         val isFirstLaunch = mapPrefs.getBoolean("is_first_launch", true)
-                        val lastLat = mapPrefs.getFloat("last_lat", 39.0f)
-                        val lastLon = mapPrefs.getFloat("last_lon", 35.0f)
-                        val defaultZoom = mapPrefs.getFloat("zoom_default", 5.0f).toDouble()
                         
-                        setExpectedCenter(GeoPoint(lastLat.toDouble(), lastLon.toDouble()))
+                        // İlk açılışta Türkiye Merkezi (39.0, 35.0) ve geniş zoom (4.0)
+                        val defaultZoom = mapPrefs.getFloat("zoom_default", 4.0f).toDouble()
+                        val centerLat = if (isFirstLaunch) 39.0 else mapPrefs.getFloat("last_lat", 39.0f).toDouble()
+                        val centerLon = if (isFirstLaunch) 35.0 else mapPrefs.getFloat("last_lon", 35.0f).toDouble()
+                        
+                        setExpectedCenter(GeoPoint(centerLat, centerLon))
                         controller.setZoom(defaultZoom)
                         
                         if (isFirstLaunch) {
@@ -412,27 +414,32 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
             }
         }
 
-        // Konumuma Git Butonu (Solma / Fade Efektli Işınlanma)
+        // Konumuma Git Butonu (Solma Efektli ve Düzgün Konum Ortalaması)
         FloatingActionButton(
             onClick = { 
-                myLocationOverlay?.let { overlay ->
-                    val myLoc = overlay.myLocation
-                    if (myLoc != null) {
-                        coroutineScope.launch {
-                            isMapVisible = false // 1. Ekran kararıp kaybolur
-                            delay(250L)          // Kısa bir bekleme
-                            
-                            val locZoom = mapPrefs.getFloat("zoom_location", 15.0f).toDouble()
-                            mapViewInstance?.controller?.setCenter(myLoc) // 2. Konuma pürüzsüzce ışınlan
-                            mapViewInstance?.controller?.setZoom(locZoom)
-                            mapViewInstance?.invalidate()
-                            
-                            delay(50L)
-                            isMapVisible = true  // 3. Ekran tekrar aydınlanıp geri gelir
-                        }
-                    } else {
-                        Toast.makeText(context, "Konum aranıyor, GPS açık olduğundan emin olun...", Toast.LENGTH_SHORT).show()
+                val currentLoc = myLocationOverlay?.myLocation ?: run {
+                    // Eğer overlay konumu henüz almadıysa son bilinen GPS konumunu dene
+                    try {
+                        val loc = locationManager.getLastKnownLocation(android.location.LocationManager.GPS_PROVIDER)
+                        if (loc != null) GeoPoint(loc.latitude, loc.longitude) else null
+                    } catch (e: SecurityException) { null }
+                }
+
+                if (currentLoc != null) {
+                    coroutineScope.launch {
+                        isMapVisible = false 
+                        delay(250L)          
+                        
+                        val locZoom = mapPrefs.getFloat("zoom_location", 15.0f).toDouble()
+                        mapViewInstance?.controller?.setCenter(currentLoc) 
+                        mapViewInstance?.controller?.setZoom(locZoom)
+                        mapViewInstance?.invalidate()
+                        
+                        delay(50L)
+                        isMapVisible = true  
                     }
+                } else {
+                    Toast.makeText(context, "Konum henüz bulunamadı, GPS açık olduğundan emin olun...", Toast.LENGTH_SHORT).show()
                 }
             },
             modifier = Modifier.align(Alignment.BottomEnd).padding(bottom = 100.dp, end = 16.dp)
@@ -456,7 +463,11 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                             Toast.makeText(context, "Önce İzinler bölümünden Konum izni verin!", Toast.LENGTH_SHORT).show()
                             return@Button
                         }
-                        val startLoc = myLocationOverlay?.myLocation
+                        val startLoc = myLocationOverlay?.myLocation ?: try {
+                            val loc = locationManager.getLastKnownLocation(android.location.LocationManager.GPS_PROVIDER)
+                            if (loc != null) GeoPoint(loc.latitude, loc.longitude) else null
+                        } catch (e: SecurityException) { null }
+
                         if (startLoc == null) {
                             Toast.makeText(context, "Konum henüz bulunamadı...", Toast.LENGTH_SHORT).show()
                             return@Button
@@ -577,7 +588,7 @@ fun ZoomSettingsScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val prefs = context.getSharedPreferences("harita_prefs", Context.MODE_PRIVATE)
 
-    var defaultZoom by remember { mutableStateOf(prefs.getFloat("zoom_default", 5.0f)) }
+    var defaultZoom by remember { mutableStateOf(prefs.getFloat("zoom_default", 4.0f)) }
     var locationZoom by remember { mutableStateOf(prefs.getFloat("zoom_location", 15.0f)) }
     var trackZoom by remember { mutableStateOf(prefs.getFloat("zoom_track", 18.0f)) }
 
@@ -598,8 +609,8 @@ fun ZoomSettingsScreen(onBack: () -> Unit) {
                     value = defaultZoom,
                     onValueChange = { defaultZoom = it },
                     onValueChangeFinished = { prefs.edit().putFloat("zoom_default", defaultZoom).apply() },
-                    valueRange = 4.0f..20.0f,
-                    steps = 15
+                    valueRange = 2.0f..20.0f,
+                    steps = 18
                 )
             }
         }
@@ -611,8 +622,8 @@ fun ZoomSettingsScreen(onBack: () -> Unit) {
                     value = locationZoom,
                     onValueChange = { locationZoom = it },
                     onValueChangeFinished = { prefs.edit().putFloat("zoom_location", locationZoom).apply() },
-                    valueRange = 5.0f..22.0f,
-                    steps = 16
+                    valueRange = 2.0f..22.0f,
+                    steps = 20
                 )
             }
         }
@@ -624,8 +635,8 @@ fun ZoomSettingsScreen(onBack: () -> Unit) {
                     value = trackZoom,
                     onValueChange = { trackZoom = it },
                     onValueChangeFinished = { prefs.edit().putFloat("zoom_track", trackZoom).apply() },
-                    valueRange = 5.0f..22.0f,
-                    steps = 16
+                    valueRange = 2.0f..22.0f,
+                    steps = 20
                 )
             }
         }
