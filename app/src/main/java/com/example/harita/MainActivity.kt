@@ -163,12 +163,10 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
     var myLocationOverlay by remember { mutableStateOf<MyLocationNewOverlay?>(null) }
     var routePolyline by remember { mutableStateOf<Polyline?>(null) }
 
-    // Takip ve Canlı Bilgi Verileri
     var elapsedSeconds by remember { mutableStateOf(0L) }
     var totalDistance by remember { mutableStateOf(0f) }
-    var lastLoc by remember { mutableStateOf<android.location.Location?>(null)  }
+    var lastLoc by remember { mutableStateOf<android.location.Location?>(null) }
     
-    var currentZoom by remember { mutableStateOf(5.0) }
     var currentAltitude by remember { mutableStateOf(0.0) }
     var currentSpeed by remember { mutableStateOf(0f) }
     var gpsStatus by remember { mutableStateOf("Aranıyor...") }
@@ -205,7 +203,7 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                 }
             }
             override fun onProviderEnabled(provider: String) { gpsStatus = "İyi" }
-            override fun onProviderDisabled(provider: String) { gpsStatus  = "Kapalı" }
+            override fun onProviderDisabled(provider: String) { gpsStatus = "Kapalı" }
         }
     }
 
@@ -213,15 +211,11 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
         mapType = mapPrefs.getString("map_type", "ROAD") ?: "ROAD"
     }
 
-    // Sayaç ve Canlı Harita Bilgileri Güncelleyicisi
     LaunchedEffect(isTracking) {
         while (true) {
             delay(1000L)
             if (isTracking) elapsedSeconds++
             
-            mapViewInstance?.let { view ->
-                currentZoom = view.zoomLevelDouble
-            }
             myLocationOverlay?.lastFix?.let { fix ->
                 currentAltitude = fix.altitude
                 currentSpeed = if (fix.hasSpeed()) fix.speed * 3.6f else 0f
@@ -302,9 +296,10 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                     val isFirstLaunch = mapPrefs.getBoolean("is_first_launch", true)
                     val lastLat = mapPrefs.getFloat("last_lat", 39.0f)
                     val lastLon = mapPrefs.getFloat("last_lon", 35.0f)
+                    val defaultZoom = mapPrefs.getFloat("zoom_default", 5.0f).toDouble()
                     
                     setExpectedCenter(GeoPoint(lastLat.toDouble(), lastLon.toDouble()))
-                    controller.setZoom(5.0)
+                    controller.setZoom(defaultZoom)
                     
                     if (isFirstLaunch) {
                         mapPrefs.edit().putBoolean("is_first_launch", false).apply()
@@ -411,7 +406,7 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
             }
         }
 
-        // Sağ Üst: Canlı Rakım ve Zoom Göstergesi
+        // Sağ Üst: Yalnızca Canlı Rakım Göstergesi (Zoom kaldırıldı)
         Card(
             modifier = Modifier.align(Alignment.TopEnd).padding(top = 16.dp, end = 16.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f)),
@@ -420,7 +415,6 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
         ) {
             Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), horizontalAlignment = Alignment.End) {
                 Text("Rakım: ${currentAltitude.toInt()} m", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("Zoom: ${String.format("%.1f", currentZoom)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
 
@@ -438,14 +432,15 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
             }
         }
 
-        // Konumuma Git Butonu (Zoom 15.0)
+        // Konumuma Git Butonu (Ayarlardan gelen zoom değeri ile)
         FloatingActionButton(
             onClick = { 
                 myLocationOverlay?.let { overlay ->
                     val myLoc = overlay.myLocation
                     if (myLoc != null) {
                         mapViewInstance?.controller?.animateTo(myLoc)
-                        mapViewInstance?.controller?.setZoom(15.0)
+                        val locZoom = mapPrefs.getFloat("zoom_location", 15.0f).toDouble()
+                        mapViewInstance?.controller?.setZoom(locZoom)
                     } else {
                         Toast.makeText(context, "Konum aranıyor, GPS açık olduğundan emin olun...", Toast.LENGTH_SHORT).show()
                     }
@@ -491,8 +486,10 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                     mapViewInstance?.overlays?.add(startMarker)
                     startMarker.showInfoWindow()
                     
+                    // Kayıt Başlatıldığında Ayarlardan Gelen Zoom Değeri
+                    val trackZoom = mapPrefs.getFloat("zoom_track", 18.0f).toDouble()
                     mapViewInstance?.controller?.animateTo(startLoc)
-                    mapViewInstance?.controller?.setZoom(18.0) 
+                    mapViewInstance?.controller?.setZoom(trackZoom) 
                     mapViewInstance?.invalidate()
 
                     try { locationManager.requestLocationUpdates(android.location.LocationManager.GPS_PROVIDER, 2000L, 2f, locationListener) } catch (e: SecurityException) { }
@@ -550,7 +547,6 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
 fun SettingsScreen(onShowRouteOnMap: (Int) -> Unit, onNavigateToMap: () -> Unit) {
     var currentSubScreen by remember { mutableStateOf("main") }
 
-    // Alt menülerdeyken geri tuşuna basıldığında uygulamadan çıkmak yerine ana ayarlara dön
     BackHandler(enabled = currentSubScreen != "main") {
         currentSubScreen = "main"
     }
@@ -562,14 +558,80 @@ fun SettingsScreen(onShowRouteOnMap: (Int) -> Unit, onNavigateToMap: () -> Unit)
                 Divider()
                 ListItem(headlineContent = { Text("Harita Görünümü") }, supportingContent = { Text("Yol veya Uydu görünümü seçin") }, modifier = Modifier.clickable { currentSubScreen = "map_type" })
                 Divider()
+                ListItem(headlineContent = { Text("Zoom Ayarları") }, supportingContent = { Text("Açılış, Konum ve Kayıt zoom seviyeleri") }, modifier = Modifier.clickable { currentSubScreen = "zoom_settings" })
+                Divider()
                 ListItem(headlineContent = { Text("İzinler") }, supportingContent = { Text("GPS, Pil ve Otomatik Başlatma") }, modifier = Modifier.clickable { currentSubScreen = "permissions" })
                 Divider()
                 ListItem(headlineContent = { Text("Geçmiş Rotalar") }, supportingContent = { Text("Kaydedilen rotaları yönetin") }, modifier = Modifier.clickable { currentSubScreen = "past_routes" })
             }
         }
         "map_type" -> { MapTypeScreen(onBack = { currentSubScreen = "main" }, onNavigateToMap = onNavigateToMap) }
+        "zoom_settings" -> { ZoomSettingsScreen(onBack = { currentSubScreen = "main" }) }
         "permissions" -> { PermissionsDetailScreen(onBack = { currentSubScreen = "main" }) }
         "past_routes" -> { PastRoutesScreen(onBack = { currentSubScreen = "main" }, onShowRouteOnMap = onShowRouteOnMap) }
+    }
+}
+
+@Composable
+fun ZoomSettingsScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
+    val prefs = context.getSharedPreferences("harita_prefs", Context.MODE_PRIVATE)
+
+    var defaultZoom by remember { mutableStateOf(prefs.getFloat("zoom_default", 5.0f)) }
+    var locationZoom by remember { mutableStateOf(prefs.getFloat("zoom_location", 15.0f)) }
+    var trackZoom by remember { mutableStateOf(prefs.getFloat("zoom_track", 18.0f)) }
+
+    LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        item {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable(onClick = onBack).fillMaxWidth().padding(vertical = 4.dp)) {
+                Text("< Geri", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                Spacer(modifier = Modifier.width(16.dp))
+                Text("Zoom Ayarları", style = MaterialTheme.typography.headlineMedium)
+            }
+        }
+        item { Divider() }
+
+        // 1. Normal Açılış Zoom
+        item {
+            Column {
+                Text("Normal Açılış Zoom: ${String.format("%.1f", defaultZoom)}", fontWeight = FontWeight.Bold)
+                Slider(
+                    value = defaultZoom,
+                    onValueChange = { defaultZoom = it },
+                    onValueChangeFinished = { prefs.edit().putFloat("zoom_default", defaultZoom).apply() },
+                    valueRange = 4.0f..20.0f,
+                    steps = 15
+                )
+            }
+        }
+
+        // 2. Konum (Beni Bul) Zoom
+        item {
+            Column {
+                Text("Konuma Git Butonu Zoom: ${String.format("%.1f", locationZoom)}", fontWeight = FontWeight.Bold)
+                Slider(
+                    value = locationZoom,
+                    onValueChange = { locationZoom = it },
+                    onValueChangeFinished = { prefs.edit().putFloat("zoom_location", locationZoom).apply() },
+                    valueRange = 5.0f..22.0f,
+                    steps = 16
+                )
+            }
+        }
+
+        // 3. Kayıt Başlat Zoom
+        item {
+            Column {
+                Text("Kayıt Başlat Butonu Zoom: ${String.format("%.1f", trackZoom)}", fontWeight = FontWeight.Bold)
+                Slider(
+                    value = trackZoom,
+                    onValueChange = { trackZoom = it },
+                    onValueChangeFinished = { prefs.edit().putFloat("zoom_track", trackZoom).apply() },
+                    valueRange = 5.0f..22.0f,
+                    steps = 16
+                )
+            }
+        }
     }
 }
 
@@ -595,7 +657,7 @@ fun MapTypeScreen(onBack: () -> Unit, onNavigateToMap: () -> Unit) {
                 modifier = Modifier.clickable {
                     selectedType = "ROAD"
                     prefs.edit().putString("map_type", "ROAD").apply()
-                    onNavigateToMap() // Seçim yapıldığında doğrudan harita ekranına dön
+                    onNavigateToMap()
                 }
             )
         }
@@ -606,7 +668,7 @@ fun MapTypeScreen(onBack: () -> Unit, onNavigateToMap: () -> Unit) {
                 modifier = Modifier.clickable {
                     selectedType = "HYBRID"
                     prefs.edit().putString("map_type", "HYBRID").apply()
-                    onNavigateToMap() // Seçim yapıldığında doğrudan harita ekranına dön
+                    onNavigateToMap()
                 }
             )
         }
