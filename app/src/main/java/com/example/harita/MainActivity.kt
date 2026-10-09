@@ -90,7 +90,6 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-// Navigasyon için Mavi Üçgen (Ok) Oluşturucu
 fun createBlueNavArrow(context: Context): android.graphics.Bitmap {
     val sizePx = (42 * context.resources.displayMetrics.density).toInt()
     val bitmap = android.graphics.Bitmap.createBitmap(sizePx, sizePx, android.graphics.Bitmap.Config.ARGB_8888)
@@ -98,10 +97,10 @@ fun createBlueNavArrow(context: Context): android.graphics.Bitmap {
     val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
     
     val path = android.graphics.Path()
-    path.moveTo(sizePx / 2f, 0f) // Tepe noktası
-    path.lineTo(sizePx.toFloat(), sizePx.toFloat()) // Sağ alt
-    path.lineTo(sizePx / 2f, sizePx * 0.75f) // İç orta alt
-    path.lineTo(0f, sizePx.toFloat()) // Sol alt
+    path.moveTo(sizePx / 2f, 0f)
+    path.lineTo(sizePx.toFloat(), sizePx.toFloat())
+    path.lineTo(sizePx / 2f, sizePx * 0.75f)
+    path.lineTo(0f, sizePx.toFloat())
     path.close()
 
     paint.color = android.graphics.Color.BLUE
@@ -232,6 +231,11 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
     var currentZoom by remember { mutableStateOf(4.0) }
     var gpsQuality by remember { mutableStateOf("İyi") }
 
+    val recFreq = mapPrefs.getLong("record_freq", 1000L)
+    val recMin = mapPrefs.getFloat("record_min_dist", 10f)
+    val recMax = mapPrefs.getFloat("record_max_dist", 500f)
+    val recAcc = mapPrefs.getFloat("record_gps_accuracy", 50f)
+
     val locationManager = remember { context.getSystemService(Context.LOCATION_SERVICE) as LocationManager }
     
     fun getBestCurrentLocation(): GeoPoint? {
@@ -274,13 +278,29 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                 }
 
                 if (isTracking) {
+                    // Accuracy filter: Eğer doğruluk belirtilen limitten kötüyse, noktayı tamamen yoksay
+                    if (location.hasAccuracy() && location.accuracy > recAcc) {
+                        return
+                    }
+
                     val geo = GeoPoint(location.latitude, location.longitude)
-                    routePolyline?.addPoint(geo)
+                    var ignoreLineDraw = false
                     
-                    lastLoc?.let { totalDistance += it.distanceTo(location) }
+                    lastLoc?.let {
+                        val dist = it.distanceTo(location)
+                        if (dist > recMax) {
+                            ignoreLineDraw = true // Çok uzağa zıpladıysa, çizgiyi çizme ama konumu güncelle
+                        } else {
+                            totalDistance += dist
+                        }
+                    }
+
+                    if (!ignoreLineDraw) {
+                        routePolyline?.addPoint(geo)
+                    }
+                    
                     lastLoc = location
 
-                    // Hız 3 km/s üzerinde ise Navigasyon Biçimi (Yön Takibi)
                     mapViewInstance?.controller?.animateTo(geo)
                     if (currentSpeed > 3f) {
                         if (location.hasBearing()) {
@@ -305,22 +325,11 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
             delay(1000L)
             if (isTracking) elapsedSeconds++
             
-            mapViewInstance?.let {
-                currentZoom = it.zoomLevelDouble
-            }
+            mapViewInstance?.let { currentZoom = it.zoomLevelDouble }
 
             myLocationOverlay?.lastFix?.let { fix ->
                 currentAltitude = fix.altitude
                 currentSpeed = if (fix.hasSpeed()) fix.speed * 3.6f else 0f
-                if (fix.hasAccuracy()) {
-                    currentAccuracy = fix.accuracy
-                    gpsQuality = when {
-                        currentAccuracy <= 5f -> "Mükemmel"
-                        currentAccuracy <= 15f -> "İyi"
-                        currentAccuracy <= 30f -> "Orta"
-                        else -> "Zayıf"
-                    }
-                }
             } ?: run {
                 currentSpeed = 0f
             }
@@ -383,24 +392,18 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
     }
 
     val widgetsLocked = mapPrefs.getBoolean("widgets_locked", false)
-
-    // Tüm araçlar varsayılan olarak kapalı (false) yapıldı
     val showSpeed = mapPrefs.getBoolean("widget_speed", false)
     var speedOffsetX by remember { mutableStateOf(mapPrefs.getInt("widget_speed_x", 16)) }
     var speedOffsetY by remember { mutableStateOf(mapPrefs.getInt("widget_speed_y", 16)) }
-
     val showAltitude = mapPrefs.getBoolean("widget_altitude", false)
     var altOffsetX by remember { mutableStateOf(mapPrefs.getInt("widget_altitude_x", 16)) }
     var altOffsetY by remember { mutableStateOf(mapPrefs.getInt("widget_altitude_y", 16)) }
-
     val showAccuracy = mapPrefs.getBoolean("widget_accuracy", false)
     var accOffsetX by remember { mutableStateOf(mapPrefs.getInt("widget_accuracy_x", 16)) }
     var accOffsetY by remember { mutableStateOf(mapPrefs.getInt("widget_accuracy_y", 120)) }
-
     val showGpsQuality = mapPrefs.getBoolean("widget_gps_quality", false)
     var gpsOffsetX by remember { mutableStateOf(mapPrefs.getInt("widget_gps_quality_x", 16)) }
     var gpsOffsetY by remember { mutableStateOf(mapPrefs.getInt("widget_gps_quality_y", 180)) }
-
     val showZoom = mapPrefs.getBoolean("widget_zoom", false)
     var zoomOffsetX by remember { mutableStateOf(mapPrefs.getInt("widget_zoom_x", 16)) }
     var zoomOffsetY by remember { mutableStateOf(mapPrefs.getInt("widget_zoom_y", 240)) }
@@ -414,7 +417,6 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                     setBuiltInZoomControls(false)
                     setTilesScaledToDpi(true)
                     tilesScaleFactor = 1.5f 
-                    
                     setMinZoomLevel(2.0)
                     setMaxZoomLevel(22.0)
                     
@@ -426,34 +428,25 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                     setExpectedCenter(GeoPoint(centerLat, centerLon))
                     controller.setZoom(defaultZoom)
                     
-                    if (isFirstLaunch) {
-                        mapPrefs.edit().putBoolean("is_first_launch", false).apply()
-                    }
+                    if (isFirstLaunch) { mapPrefs.edit().putBoolean("is_first_launch", false).apply() }
                     
                     val rotationGestureOverlay = RotationGestureOverlay(this).apply { isEnabled = true }
                     overlays.add(rotationGestureOverlay)
                     
                     val provider = GpsMyLocationProvider(ctx).apply {
-                        try {
-                            addLocationSource(LocationManager.NETWORK_PROVIDER)
-                        } catch (e: Exception) {}
+                        try { addLocationSource(LocationManager.NETWORK_PROVIDER) } catch (e: Exception) {}
                     }
                     
                     val overlay = MyLocationNewOverlay(provider, this)
-                    // Mavi Ok İkonunu Tanımla ve Ekle
                     val navArrow = createBlueNavArrow(ctx)
                     overlay.setDirectionArrow(navArrow, navArrow)
                     overlay.setPersonIcon(navArrow)
-                    
                     overlay.enableMyLocation()
                     
                     overlay.runOnFirstFix {
                         post {
                             overlay.myLocation?.let {
-                                mapPrefs.edit()
-                                    .putFloat("last_lat", it.latitude.toFloat())
-                                    .putFloat("last_lon", it.longitude.toFloat())
-                                    .apply()
+                                mapPrefs.edit().putFloat("last_lat", it.latitude.toFloat()).putFloat("last_lon", it.longitude.toFloat()).apply()
                             }
                         }
                     }
@@ -473,86 +466,45 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
             modifier = Modifier.fillMaxSize()
         )
 
-        // Hız Göstergesi Widget
         if (showSpeed) {
             Box(
-                modifier = Modifier
-                    .offset { IntOffset(speedOffsetX, speedOffsetY) }
-                    .pointerInput(widgetsLocked) {
-                        if (!widgetsLocked) {
-                            detectDragGestures { _, dragAmount ->
-                                speedOffsetX += dragAmount.x.roundToInt()
-                                speedOffsetY += dragAmount.y.roundToInt()
-                                mapPrefs.edit()
-                                    .putInt("widget_speed_x", speedOffsetX)
-                                    .putInt("widget_speed_y", speedOffsetY)
-                                    .apply()
-                            }
+                modifier = Modifier.offset { IntOffset(speedOffsetX, speedOffsetY) }.pointerInput(widgetsLocked) {
+                    if (!widgetsLocked) {
+                        detectDragGestures { _, dragAmount ->
+                            speedOffsetX += dragAmount.x.roundToInt(); speedOffsetY += dragAmount.y.roundToInt()
+                            mapPrefs.edit().putInt("widget_speed_x", speedOffsetX).putInt("widget_speed_y", speedOffsetY).apply()
                         }
                     }
+                }
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Box(
-                        modifier = Modifier
-                            .size(80.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f)),
-                        contentAlignment = Alignment.Center
-                    ) {
+                    Box(modifier = Modifier.size(80.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f)), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                text = String.format("%.0f", currentSpeed),
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 22.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = "km/s",
-                                fontSize = 10.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            Text(String.format("%.0f", currentSpeed), fontWeight = FontWeight.Bold, fontSize = 22.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("km/s", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
-
                     if (pastRouteIndex >= 0) {
-                        Button(
-                            onClick = { 
-                                onClearPastRoute()
-                                mapViewInstance?.overlays?.removeAll { it is Polyline || (it is Marker && it.title != "Start" && it.title != "Stop") }
-                                mapViewInstance?.invalidate()
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                        ) {
-                            Text("Haritayı Temizle")
-                        }
+                        Button(onClick = { 
+                            onClearPastRoute()
+                            mapViewInstance?.overlays?.removeAll { it is Polyline || (it is Marker && it.title != "Start" && it.title != "Stop") }
+                            mapViewInstance?.invalidate()
+                        }, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { Text("Haritayı Temizle") }
                     }
                 }
             }
         }
 
-        // Rakım Widget
         if (showAltitude) {
-            Box(
-                modifier = Modifier
-                    .offset { IntOffset(altOffsetX, altOffsetY) }
-                    .pointerInput(widgetsLocked) {
-                        if (!widgetsLocked) {
-                            detectDragGestures { _, dragAmount ->
-                                altOffsetX += dragAmount.x.roundToInt()
-                                altOffsetY += dragAmount.y.roundToInt()
-                                mapPrefs.edit()
-                                    .putInt("widget_altitude_x", altOffsetX)
-                                    .putInt("widget_altitude_y", altOffsetY)
-                                    .apply()
-                            }
-                        }
+            Box(modifier = Modifier.offset { IntOffset(altOffsetX, altOffsetY) }.pointerInput(widgetsLocked) {
+                if (!widgetsLocked) {
+                    detectDragGestures { _, dragAmount ->
+                        altOffsetX += dragAmount.x.roundToInt(); altOffsetY += dragAmount.y.roundToInt()
+                        mapPrefs.edit().putInt("widget_altitude_x", altOffsetX).putInt("widget_altitude_y", altOffsetY).apply()
                     }
-            ) {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f)),
-                    shape = RoundedCornerShape(8.dp),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-                ) {
+                }
+            }) {
+                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f)), shape = RoundedCornerShape(8.dp), elevation = CardDefaults.cardElevation(4.dp)) {
                     Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), horizontalAlignment = Alignment.End) {
                         Text("Rakım: ${currentAltitude.toInt()} m", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
@@ -560,29 +512,16 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
             }
         }
 
-        // Konum Doğruluğu Widget
         if (showAccuracy) {
-            Box(
-                modifier = Modifier
-                    .offset { IntOffset(accOffsetX, accOffsetY) }
-                    .pointerInput(widgetsLocked) {
-                        if (!widgetsLocked) {
-                            detectDragGestures { _, dragAmount ->
-                                accOffsetX += dragAmount.x.roundToInt()
-                                accOffsetY += dragAmount.y.roundToInt()
-                                mapPrefs.edit()
-                                    .putInt("widget_accuracy_x", accOffsetX)
-                                    .putInt("widget_accuracy_y", accOffsetY)
-                                    .apply()
-                            }
-                        }
+            Box(modifier = Modifier.offset { IntOffset(accOffsetX, accOffsetY) }.pointerInput(widgetsLocked) {
+                if (!widgetsLocked) {
+                    detectDragGestures { _, dragAmount ->
+                        accOffsetX += dragAmount.x.roundToInt(); accOffsetY += dragAmount.y.roundToInt()
+                        mapPrefs.edit().putInt("widget_accuracy_x", accOffsetX).putInt("widget_accuracy_y", accOffsetY).apply()
                     }
-            ) {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f)),
-                    shape = RoundedCornerShape(8.dp),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-                ) {
+                }
+            }) {
+                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f)), shape = RoundedCornerShape(8.dp), elevation = CardDefaults.cardElevation(4.dp)) {
                     Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
                         Text("Doğruluk: ±${currentAccuracy.toInt()} m", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
@@ -590,29 +529,16 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
             }
         }
 
-        // GPS Kalitesi Widget
         if (showGpsQuality) {
-            Box(
-                modifier = Modifier
-                    .offset { IntOffset(gpsOffsetX, gpsOffsetY) }
-                    .pointerInput(widgetsLocked) {
-                        if (!widgetsLocked) {
-                            detectDragGestures { _, dragAmount ->
-                                gpsOffsetX += dragAmount.x.roundToInt()
-                                gpsOffsetY += dragAmount.y.roundToInt()
-                                mapPrefs.edit()
-                                    .putInt("widget_gps_quality_x", gpsOffsetX)
-                                    .putInt("widget_gps_quality_y", gpsOffsetY)
-                                    .apply()
-                            }
-                        }
+            Box(modifier = Modifier.offset { IntOffset(gpsOffsetX, gpsOffsetY) }.pointerInput(widgetsLocked) {
+                if (!widgetsLocked) {
+                    detectDragGestures { _, dragAmount ->
+                        gpsOffsetX += dragAmount.x.roundToInt(); gpsOffsetY += dragAmount.y.roundToInt()
+                        mapPrefs.edit().putInt("widget_gps_quality_x", gpsOffsetX).putInt("widget_gps_quality_y", gpsOffsetY).apply()
                     }
-            ) {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f)),
-                    shape = RoundedCornerShape(8.dp),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-                ) {
+                }
+            }) {
+                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f)), shape = RoundedCornerShape(8.dp), elevation = CardDefaults.cardElevation(4.dp)) {
                     Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
                         Text("GPS: $gpsQuality", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
@@ -620,29 +546,16 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
             }
         }
 
-        // Zoom Widget
         if (showZoom) {
-            Box(
-                modifier = Modifier
-                    .offset { IntOffset(zoomOffsetX, zoomOffsetY) }
-                    .pointerInput(widgetsLocked) {
-                        if (!widgetsLocked) {
-                            detectDragGestures { _, dragAmount ->
-                                zoomOffsetX += dragAmount.x.roundToInt()
-                                zoomOffsetY += dragAmount.y.roundToInt()
-                                mapPrefs.edit()
-                                    .putInt("widget_zoom_x", zoomOffsetX)
-                                    .putInt("widget_zoom_y", zoomOffsetY)
-                                    .apply()
-                            }
-                        }
+            Box(modifier = Modifier.offset { IntOffset(zoomOffsetX, zoomOffsetY) }.pointerInput(widgetsLocked) {
+                if (!widgetsLocked) {
+                    detectDragGestures { _, dragAmount ->
+                        zoomOffsetX += dragAmount.x.roundToInt(); zoomOffsetY += dragAmount.y.roundToInt()
+                        mapPrefs.edit().putInt("widget_zoom_x", zoomOffsetX).putInt("widget_zoom_y", zoomOffsetY).apply()
                     }
-            ) {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f)),
-                    shape = RoundedCornerShape(8.dp),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-                ) {
+                }
+            }) {
+                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f)), shape = RoundedCornerShape(8.dp), elevation = CardDefaults.cardElevation(4.dp)) {
                     Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
                         Text("Zoom: ${String.format("%.1f", currentZoom)}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
@@ -651,12 +564,7 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
         }
 
         if (isTracking) {
-            Card(
-                modifier = Modifier.align(Alignment.TopCenter).padding(top = 16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-                shape = RoundedCornerShape(16.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
-            ) {
+            Card(modifier = Modifier.align(Alignment.TopCenter).padding(top = 16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer), shape = RoundedCornerShape(16.dp), elevation = CardDefaults.cardElevation(6.dp)) {
                 Row(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     Text("Süre: ${formatTime(elapsedSeconds)}", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
                     Text("Mesafe: ${formatDistance(totalDistance)}", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
@@ -678,17 +586,9 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                 }
             },
             modifier = Modifier.align(Alignment.BottomEnd).padding(bottom = 100.dp, end = 16.dp)
-        ) {
-            Icon(Icons.Default.LocationOn, contentDescription = "Konumuma Git")
-        }
+        ) { Icon(Icons.Default.LocationOn, contentDescription = "Konumuma Git") }
 
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 32.dp)
-                .fillMaxWidth(),
-            contentAlignment = Alignment.Center
-        ) {
+        Box(modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 32.dp).fillMaxWidth(), contentAlignment = Alignment.Center) {
             if (!isTracking) {
                 Button(
                     onClick = { 
@@ -699,25 +599,20 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                         }
                         myLocationOverlay?.enableMyLocation()
                         val startLoc = getBestCurrentLocation() ?: myLocationOverlay?.myLocation
-
                         if (startLoc == null) {
                             Toast.makeText(context, "Konum henüz bulunamadı...", Toast.LENGTH_SHORT).show()
                             return@Button
                         }
-
                         onClearPastRoute() 
                         isTracking = true
                         elapsedSeconds = 0L
                         totalDistance = 0f
                         lastLoc = null
-
                         try { 
-                            lastLoc = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER) 
-                                ?: locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+                            lastLoc = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER) ?: locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
                         } catch (e: SecurityException) { }
 
                         mapViewInstance?.overlays?.removeAll { it is Marker || it is Polyline }
-
                         val polyline = Polyline().apply { outlinePaint.color = android.graphics.Color.RED; outlinePaint.strokeWidth = 14f; addPoint(startLoc) }
                         mapViewInstance?.overlays?.add(polyline)
                         routePolyline = polyline
@@ -732,38 +627,31 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                         mapViewInstance?.invalidate()
 
                         try { 
-                            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 2000L, 2f, locationListener) 
-                            locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 2000L, 2f, locationListener)
+                            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, recFreq, recMin, locationListener) 
+                            locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, recFreq, recMin, locationListener)
                         } catch (e: SecurityException) { }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                    modifier = Modifier.height(50.dp).width(160.dp)
-                ) {
-                    Text("Başlat", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                }
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary), modifier = Modifier.height(50.dp).width(160.dp)
+                ) { Text("Başlat", fontSize = 16.sp, fontWeight = FontWeight.Bold) }
             } else {
                 Button(
                     onClick = { 
                         isTracking = false
                         try { locationManager.removeUpdates(locationListener) } catch (e: Exception) {}
                         mapViewInstance?.setMapOrientation(0f)
-
                         val points = routePolyline?.actualPoints
                         val endLoc = myLocationOverlay?.myLocation ?: points?.lastOrNull()
-                        
                         if (endLoc != null) {
                             val endMarker = Marker(mapViewInstance).apply { position = endLoc; title = "Stop"; setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM); icon = createSmallMarkerIcon(context, android.R.drawable.presence_busy, android.graphics.Color.RED) }
                             mapViewInstance?.overlays?.add(endMarker)
                             endMarker.showInfoWindow()
                             mapViewInstance?.invalidate()
                         }
-
                         if (!points.isNullOrEmpty()) {
                             val dateFormat = java.text.SimpleDateFormat("dd.MM.yyyy HH:mm", java.util.Locale.getDefault())
                             val dateStr = dateFormat.format(java.util.Date())
                             val prefs = context.getSharedPreferences("harita_prefs", Context.MODE_PRIVATE)
                             val array = org.json.JSONArray(prefs.getString("saved_routes", "[]"))
-                            
                             val newRoute = org.json.JSONObject().apply {
                                 put("title", "Rota - $dateStr")
                                 put("date", dateStr)
@@ -776,11 +664,8 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                             Toast.makeText(context, "Rota kaydedildi!", Toast.LENGTH_SHORT).show()
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                    modifier = Modifier.height(50.dp).width(160.dp)
-                ) {
-                    Text("Bitir", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                }
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error), modifier = Modifier.height(50.dp).width(160.dp)
+                ) { Text("Bitir", fontSize = 16.sp, fontWeight = FontWeight.Bold) }
             }
         }
     }
@@ -803,6 +688,8 @@ fun SettingsScreen(onShowRouteOnMap: (Int) -> Unit, onNavigateToMap: () -> Unit)
             Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Ayarlar", style = MaterialTheme.typography.headlineMedium)
                 Divider()
+                ListItem(headlineContent = { Text("Rota Kayıt Ayarları") }, supportingContent = { Text("Kayıt sıklığı, min/max mesafe ve GPS doğruluğu") }, modifier = Modifier.clickable { currentSubScreen = "route_record_settings" })
+                Divider()
                 ListItem(headlineContent = { Text("Harita Görünümü") }, supportingContent = { Text("Yol veya Uydu görünümü seçin") }, modifier = Modifier.clickable { currentSubScreen = "map_type" })
                 Divider()
                 ListItem(headlineContent = { Text("Zoom Ayarları") }, supportingContent = { Text("Açılış, Konum ve Kayıt zoom seviyeleri") }, modifier = Modifier.clickable { currentSubScreen = "zoom_settings" })
@@ -814,11 +701,133 @@ fun SettingsScreen(onShowRouteOnMap: (Int) -> Unit, onNavigateToMap: () -> Unit)
                 ListItem(headlineContent = { Text("Geçmiş Rotalar") }, supportingContent = { Text("Kaydedilen rotaları yönetin") }, modifier = Modifier.clickable { currentSubScreen = "past_routes" })
             }
         }
+        "route_record_settings" -> { RouteRecordSettingsScreen(onBack = { currentSubScreen = "main" }) }
         "map_type" -> { MapTypeScreen(onBack = { currentSubScreen = "main" }, onNavigateToMap = onNavigateToMap) }
         "zoom_settings" -> { ZoomSettingsScreen(onBack = { currentSubScreen = "main" }) }
         "widgets_settings" -> { WidgetsSettingsScreen(onBack = { currentSubScreen = "main" }) }
         "permissions" -> { PermissionsDetailScreen(onBack = { currentSubScreen = "main" }) }
         "past_routes" -> { PastRoutesScreen(onBack = { currentSubScreen = "main" }, onShowRouteOnMap = onShowRouteOnMap) }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun RouteRecordSettingsScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
+    val prefs = context.getSharedPreferences("harita_prefs", Context.MODE_PRIVATE)
+
+    val freqOptions = listOf("1 sn", "2 sn", "3 sn", "5 sn", "10 sn")
+    val freqValues = listOf(1000L, 2000L, 3000L, 5000L, 10000L)
+    var freqIndex by remember { mutableStateOf(freqValues.indexOf(prefs.getLong("record_freq", 1000L)).takeIf { it >= 0 } ?: 0) }
+
+    val minOptions = listOf("0 m", "5 m", "10 m", "20 m", "50 m")
+    val minValues = listOf(0f, 5f, 10f, 20f, 50f)
+    var minIndex by remember { mutableStateOf(minValues.indexOf(prefs.getFloat("record_min_dist", 10f)).takeIf { it >= 0 } ?: 2) }
+
+    val maxOptions = listOf("100 m", "200 m", "500 m", "1 km", "2 km")
+    val maxValues = listOf(100f, 200f, 500f, 1000f, 2000f)
+    var maxIndex by remember { mutableStateOf(maxValues.indexOf(prefs.getFloat("record_max_dist", 500f)).takeIf { it >= 0 } ?: 2) }
+
+    val accOptions = listOf("10 m", "20 m", "50 m", "100 m")
+    val accValues = listOf(10f, 20f, 50f, 100f)
+    var accIndex by remember { mutableStateOf(accValues.indexOf(prefs.getFloat("record_gps_accuracy", 50f)).takeIf { it >= 0 } ?: 2) }
+
+    LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        item {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable(onClick = onBack).fillMaxWidth().padding(vertical = 4.dp)) {
+                Text("< Geri", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                Spacer(modifier = Modifier.width(16.dp))
+                Text("Rota Kayıt Ayarları", style = MaterialTheme.typography.headlineMedium)
+            }
+        }
+        item { Divider() }
+
+        item {
+            SettingsDropdown(
+                label = "Kayıt Sıklığı",
+                description = "GPS cihazı istek sıklığı",
+                options = freqOptions,
+                selectedIndex = freqIndex,
+                onOptionSelected = { idx -> 
+                    freqIndex = idx
+                    prefs.edit().putLong("record_freq", freqValues[idx]).apply()
+                }
+            )
+        }
+        item {
+            SettingsDropdown(
+                label = "Minimum Mesafe",
+                description = "Kayıt sırasında komşu noktalar arası minimum mesafe",
+                options = minOptions,
+                selectedIndex = minIndex,
+                onOptionSelected = { idx -> 
+                    minIndex = idx
+                    prefs.edit().putFloat("record_min_dist", minValues[idx]).apply()
+                }
+            )
+        }
+        item {
+            SettingsDropdown(
+                label = "Maksimum Mesafe",
+                description = "Bir bölümdeki noktalar arası maksimum mesafe",
+                options = maxOptions,
+                selectedIndex = maxIndex,
+                onOptionSelected = { idx -> 
+                    maxIndex = idx
+                    prefs.edit().putFloat("record_max_dist", maxValues[idx]).apply()
+                }
+            )
+        }
+        item {
+            SettingsDropdown(
+                label = "GPS Doğruluğu",
+                description = "Doğruluk bundan düşükse, konum yoksayılır",
+                options = accOptions,
+                selectedIndex = accIndex,
+                onOptionSelected = { idx -> 
+                    accIndex = idx
+                    prefs.edit().putFloat("record_gps_accuracy", accValues[idx]).apply()
+                }
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SettingsDropdown(label: String, description: String, options: List<String>, selectedIndex: Int, onOptionSelected: (Int) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+        Text(label, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+        Text(description, fontSize = 12.sp, color = Color.Gray, modifier = Modifier.padding(bottom = 8.dp))
+        
+        ExposedDropdownMenuBox(
+            expanded = expanded,
+            onExpandedChange = { expanded = !expanded }
+        ) {
+            OutlinedTextField(
+                value = options.getOrElse(selectedIndex) { "" },
+                onValueChange = {},
+                readOnly = true,
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                modifier = Modifier.menuAnchor().fillMaxWidth(),
+                colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors()
+            )
+            ExposedDropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false }
+            ) {
+                options.forEachIndexed { index, selectionOption ->
+                    DropdownMenuItem(
+                        text = { Text(selectionOption) },
+                        onClick = {
+                            onOptionSelected(index)
+                            expanded = false
+                        }
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -849,94 +858,53 @@ fun WidgetsSettingsScreen(onBack: () -> Unit) {
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Row(
-                    modifier = Modifier.padding(16.dp).fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Column {
                         Text("Düzeni Kilitle", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                        Text(if (widgetsLocked) "Araçlar sabitlendi (Sürüklenemez)" else "Araçlar serbest (Sürükleyip yerleştirebilirsiniz)", fontSize = 12.sp)
+                        Text(if (widgetsLocked) "Araçlar sabitlendi" else "Araçlar serbest (Sürükle bırak)", fontSize = 12.sp)
                     }
-                    Switch(
-                        checked = widgetsLocked,
-                        onCheckedChange = { 
-                            widgetsLocked = it
-                            prefs.edit().putBoolean("widgets_locked", it).apply()
-                        }
-                    )
+                    Switch(checked = widgetsLocked, onCheckedChange = { widgetsLocked = it; prefs.edit().putBoolean("widgets_locked", it).apply() })
                 }
             }
         }
-
         item { Text("Araç Göster/Gizle", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
-
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Text("Hız Göstergesi", fontWeight = FontWeight.Bold)
-                        Switch(checked = speedShow, onCheckedChange = { 
-                            speedShow = it
-                            prefs.edit().putBoolean("widget_speed", it).apply()
-                        })
-                    }
+                Row(modifier = Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text("Hız Göstergesi", fontWeight = FontWeight.Bold)
+                    Switch(checked = speedShow, onCheckedChange = { speedShow = it; prefs.edit().putBoolean("widget_speed", it).apply() })
                 }
             }
         }
-
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Text("Rakım Göstergesi", fontWeight = FontWeight.Bold)
-                        Switch(checked = altShow, onCheckedChange = { 
-                            altShow = it
-                            prefs.edit().putBoolean("widget_altitude", it).apply()
-                        })
-                    }
+                Row(modifier = Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text("Rakım Göstergesi", fontWeight = FontWeight.Bold)
+                    Switch(checked = altShow, onCheckedChange = { altShow = it; prefs.edit().putBoolean("widget_altitude", it).apply() })
                 }
             }
         }
-
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Text("Konum Doğruluğu", fontWeight = FontWeight.Bold)
-                        Switch(checked = accShow, onCheckedChange = { 
-                            accShow = it
-                            prefs.edit().putBoolean("widget_accuracy", it).apply()
-                        })
-                    }
+                Row(modifier = Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text("Konum Doğruluğu", fontWeight = FontWeight.Bold)
+                    Switch(checked = accShow, onCheckedChange = { accShow = it; prefs.edit().putBoolean("widget_accuracy", it).apply() })
                 }
             }
         }
-
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Text("GPS Kalitesi", fontWeight = FontWeight.Bold)
-                        Switch(checked = gpsShow, onCheckedChange = { 
-                            gpsShow = it
-                            prefs.edit().putBoolean("widget_gps_quality", it).apply()
-                        })
-                    }
+                Row(modifier = Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text("GPS Kalitesi", fontWeight = FontWeight.Bold)
+                    Switch(checked = gpsShow, onCheckedChange = { gpsShow = it; prefs.edit().putBoolean("widget_gps_quality", it).apply() })
                 }
             }
         }
-
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Text("Zoom Göstergesi", fontWeight = FontWeight.Bold)
-                        Switch(checked = zoomShow, onCheckedChange = { 
-                            zoomShow = it
-                            prefs.edit().putBoolean("widget_zoom", it).apply()
-                        })
-                    }
+                Row(modifier = Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text("Zoom Göstergesi", fontWeight = FontWeight.Bold)
+                    Switch(checked = zoomShow, onCheckedChange = { zoomShow = it; prefs.edit().putBoolean("widget_zoom", it).apply() })
                 }
             }
         }
@@ -961,43 +929,22 @@ fun ZoomSettingsScreen(onBack: () -> Unit) {
             }
         }
         item { Divider() }
-
         item {
             Column {
                 Text("Normal Açılış Zoom: ${String.format("%.1f", defaultZoom)}", fontWeight = FontWeight.Bold)
-                Slider(
-                    value = defaultZoom,
-                    onValueChange = { defaultZoom = it },
-                    onValueChangeFinished = { prefs.edit().putFloat("zoom_default", defaultZoom).apply() },
-                    valueRange = 2.0f..20.0f,
-                    steps = 18
-                )
+                Slider(value = defaultZoom, onValueChange = { defaultZoom = it }, onValueChangeFinished = { prefs.edit().putFloat("zoom_default", defaultZoom).apply() }, valueRange = 2.0f..20.0f, steps = 18)
             }
         }
-
         item {
             Column {
                 Text("Konuma Git Butonu Zoom: ${String.format("%.1f", locationZoom)}", fontWeight = FontWeight.Bold)
-                Slider(
-                    value = locationZoom,
-                    onValueChange = { locationZoom = it },
-                    onValueChangeFinished = { prefs.edit().putFloat("zoom_location", locationZoom).apply() },
-                    valueRange = 2.0f..22.0f,
-                    steps = 20
-                )
+                Slider(value = locationZoom, onValueChange = { locationZoom = it }, onValueChangeFinished = { prefs.edit().putFloat("zoom_location", locationZoom).apply() }, valueRange = 2.0f..22.0f, steps = 20)
             }
         }
-
         item {
             Column {
                 Text("Kayıt Başlat Butonu Zoom: ${String.format("%.1f", trackZoom)}", fontWeight = FontWeight.Bold)
-                Slider(
-                    value = trackZoom,
-                    onValueChange = { trackZoom = it },
-                    onValueChangeFinished = { prefs.edit().putFloat("zoom_track", trackZoom).apply() },
-                    valueRange = 2.0f..22.0f,
-                    steps = 20
-                )
+                Slider(value = trackZoom, onValueChange = { trackZoom = it }, onValueChangeFinished = { prefs.edit().putFloat("zoom_track", trackZoom).apply() }, valueRange = 2.0f..22.0f, steps = 20)
             }
         }
     }
@@ -1022,22 +969,14 @@ fun MapTypeScreen(onBack: () -> Unit, onNavigateToMap: () -> Unit) {
             ListItem(
                 headlineContent = { Text("Yol Görünümü (Standart)") },
                 trailingContent = { if (selectedType == "ROAD") Icon(Icons.Default.CheckCircle, "", tint = Color.Green) },
-                modifier = Modifier.clickable {
-                    selectedType = "ROAD"
-                    prefs.edit().putString("map_type", "ROAD").apply()
-                    onNavigateToMap()
-                }
+                modifier = Modifier.clickable { selectedType = "ROAD"; prefs.edit().putString("map_type", "ROAD").apply(); onNavigateToMap() }
             )
         }
         item {
             ListItem(
                 headlineContent = { Text("Uydu Görünümü (Karma)") },
                 trailingContent = { if (selectedType == "HYBRID") Icon(Icons.Default.CheckCircle, "", tint = Color.Green) },
-                modifier = Modifier.clickable {
-                    selectedType = "HYBRID"
-                    prefs.edit().putString("map_type", "HYBRID").apply()
-                    onNavigateToMap()
-                }
+                modifier = Modifier.clickable { selectedType = "HYBRID"; prefs.edit().putString("map_type", "HYBRID").apply(); onNavigateToMap() }
             )
         }
     }
