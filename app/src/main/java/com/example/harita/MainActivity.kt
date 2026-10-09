@@ -109,7 +109,7 @@ fun RouteTrackerApp() {
 fun MapScreen() {
     val context = LocalContext.current
     var isTracking by remember { mutableStateOf(false) }
-    var mapType by remember { mutableStateOf("ROAD") } // "ROAD" veya "HYBRID"
+    var mapType by remember { mutableStateOf("ROAD") }
     
     var mapViewInstance by remember { mutableStateOf<MapView?>(null) }
     var myLocationOverlay by remember { mutableStateOf<MyLocationNewOverlay?>(null) }
@@ -142,10 +142,10 @@ fun MapScreen() {
         }
     }
 
-    // Google Haritalar - Standart Yol Katmanı
+    // Maksimum Zoom Seviyesi 22'ye çıkarıldı
     val googleRoads = remember {
         object : OnlineTileSourceBase(
-            "GoogleRoads", 0, 19, 256, "", 
+            "GoogleRoads", 0, 22, 256, "", 
             arrayOf("https://mt0.google.com/vt/lyrs=m&hl=tr&", "https://mt1.google.com/vt/lyrs=m&hl=tr&", "https://mt2.google.com/vt/lyrs=m&hl=tr&", "https://mt3.google.com/vt/lyrs=m&hl=tr&")
         ) {
             override fun getTileURLString(pMapTileIndex: Long): String {
@@ -157,10 +157,9 @@ fun MapScreen() {
         }
     }
 
-    // Google Haritalar - Karma Uydu Katmanı (Uydu + Sokak İsimleri)
     val googleHybrid = remember {
         object : OnlineTileSourceBase(
-            "GoogleHybrid", 0, 19, 256, "", 
+            "GoogleHybrid", 0, 22, 256, "", 
             arrayOf("https://mt0.google.com/vt/lyrs=y&hl=tr&", "https://mt1.google.com/vt/lyrs=y&hl=tr&", "https://mt2.google.com/vt/lyrs=y&hl=tr&", "https://mt3.google.com/vt/lyrs=y&hl=tr&")
         ) {
             override fun getTileURLString(pMapTileIndex: Long): String {
@@ -181,7 +180,7 @@ fun MapScreen() {
                     setBuiltInZoomControls(false)
                     
                     setMinZoomLevel(4.0)
-                    setMaxZoomLevel(19.0)
+                    setMaxZoomLevel(22.0) // Harita zoom kısıtlaması kaldırıldı
                     controller.setZoom(9.0)
                     
                     val rotationGestureOverlay = RotationGestureOverlay(this).apply {
@@ -197,7 +196,7 @@ fun MapScreen() {
                         post {
                             overlay.myLocation?.let {
                                 controller.animateTo(it)
-                                controller.setZoom(9.0)
+                                controller.setZoom(14.0)
                             }
                         }
                     }
@@ -217,7 +216,6 @@ fun MapScreen() {
             modifier = Modifier.fillMaxSize()
         )
 
-        // Uydu/Yol Görünümü Değiştirme Butonu
         Button(
             onClick = { mapType = if (mapType == "ROAD") "HYBRID" else "ROAD" },
             modifier = Modifier.align(Alignment.TopEnd).padding(top = 16.dp, end = 16.dp),
@@ -236,7 +234,7 @@ fun MapScreen() {
                     val myLoc = overlay.myLocation
                     if (myLoc != null) {
                         mapViewInstance?.controller?.animateTo(myLoc)
-                        mapViewInstance?.controller?.setZoom(17.0)
+                        mapViewInstance?.controller?.setZoom(19.0)
                     } else {
                         Toast.makeText(context, "Konum aranıyor, GPS açık olduğundan emin olun...", Toast.LENGTH_SHORT).show()
                     }
@@ -286,7 +284,7 @@ fun MapScreen() {
                     startMarker.showInfoWindow()
                     
                     mapViewInstance?.controller?.animateTo(startLoc)
-                    mapViewInstance?.controller?.setZoom(17.5)
+                    mapViewInstance?.controller?.setZoom(19.0)
                     mapViewInstance?.invalidate()
 
                     try {
@@ -428,8 +426,14 @@ fun PermissionsDetailScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
     val prefs = context.getSharedPreferences("harita_prefs", Context.MODE_PRIVATE)
+    
     var locGranted by remember { mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) }
+    var notifGranted by remember { mutableStateOf(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED else true) }
+    var batGranted by remember { mutableStateOf(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) powerManager.isIgnoringBatteryOptimizations(context.packageName) else true) }
+    var autoGranted by remember { mutableStateOf(prefs.getBoolean("autostart_ok", false)) }
+
     val locLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { locGranted = it }
+    val notifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { notifGranted = it }
 
     LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
@@ -441,14 +445,63 @@ fun PermissionsDetailScreen(onBack: () -> Unit) {
         }
         item { Divider() }
         item {
-            ListItem(
-                headlineContent = { Text("GPS / Konum İzni") },
-                trailingContent = {
-                    if (locGranted) Icon(Icons.Default.CheckCircle, contentDescription = "Onaylı", tint = Color.Green)
-                    else Button(onClick = { locLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION) }) { Text("İzin Ver") }
-                },
-                modifier = Modifier.clickable(enabled = !locGranted) { locLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION) }
-            )
+            PermissionItem("GPS / Konum İzni", locGranted) {
+                locLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+            }
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            item {
+                PermissionItem("Bildirim İzni", notifGranted) {
+                    notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
+            }
+        }
+        item {
+            PermissionItem("Arka Plan (Pil) İzni", batGranted) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !batGranted) {
+                    try {
+                        val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                            data = Uri.parse("package:${context.packageName}")
+                        }
+                        context.startActivity(intent)
+                    } catch (e: Exception) {
+                        Toast.makeText(context, "Desteklenmiyor", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        }
+        item {
+            PermissionItem("Otomatik Başlatma (Xiaomi)", autoGranted) {
+                try {
+                    val intent = Intent().apply {
+                        component = ComponentName("com.miui.securitycenter", "com.miui.permcenter.autostart.AutoStartManagementActivity")
+                    }
+                    context.startActivity(intent)
+                    prefs.edit().putBoolean("autostart_ok", true).apply()
+                    autoGranted = true
+                } catch (e: Exception) {
+                    Toast.makeText(context, "Xiaomi cihaz bulunamadı.", Toast.LENGTH_SHORT).show()
+                    prefs.edit().putBoolean("autostart_ok", true).apply()
+                    autoGranted = true
+                }
+            }
         }
     }
+}
+
+@Composable
+fun PermissionItem(title: String, isGranted: Boolean, onClick: () -> Unit) {
+    ListItem(
+        headlineContent = { Text(title) },
+        trailingContent = {
+            if (isGranted) {
+                Icon(Icons.Default.CheckCircle, contentDescription = "Onaylı", tint = Color.Green)
+            } else {
+                Button(onClick = onClick) {
+                    Text("İzin Ver")
+                }
+            }
+        },
+        modifier = Modifier.clickable(enabled = !isGranted, onClick = onClick)
+    )
 }
