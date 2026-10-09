@@ -47,7 +47,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        Configuration.getInstance().userAgentValue = "HaritaApp/1.0"
+        // OSM sunucu politikasına tam uygun benzersiz User-Agent ve iletişim bilgisi
+        Configuration.getInstance().userAgentValue = "KisiselRotaUygulamasi/1.0 (kisisel.rota@gmail.com)"
         Configuration.getInstance().load(
             applicationContext,
             applicationContext.getSharedPreferences("osmdroid_prefs", Context.MODE_PRIVATE)
@@ -144,7 +145,6 @@ fun MapScreen() {
         AndroidView(
             factory = { ctx ->
                 MapView(ctx).apply {
-                    // Keskin ve piksellenmeyen OpenStreetMap (MAPNIK) katmanı
                     setTileSource(TileSourceFactory.MAPNIK)
                     setMultiTouchControls(true)
                     setBuiltInZoomControls(false)
