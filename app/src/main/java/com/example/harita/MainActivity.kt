@@ -5,6 +5,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.location.LocationProvider
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -12,13 +13,16 @@ import android.os.PowerManager
 import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
@@ -29,10 +33,12 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.navigation.compose.*
@@ -135,6 +141,9 @@ fun RouteTrackerApp() {
                     onShowRouteOnMap = { index ->
                         selectedPastRouteIndex = index
                         navController.navigate("map") { popUpTo(0) }
+                    },
+                    onNavigateToMap = {
+                        navController.navigate("map") { popUpTo(0) }
                     }
                 ) 
             }
@@ -157,11 +166,12 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
     // Takip ve Canlı Bilgi Verileri
     var elapsedSeconds by remember { mutableStateOf(0L) }
     var totalDistance by remember { mutableStateOf(0f) }
-    var lastLoc by remember { mutableStateOf<android.location.Location?>(null) }
+    var lastLoc by remember { mutableStateOf<android.location.Location?>(null)  }
     
     var currentZoom by remember { mutableStateOf(5.0) }
     var currentAltitude by remember { mutableStateOf(0.0) }
-    var currentSpeed by remember { mutableStateOf(0f) } // Hız değişkeni eklendi
+    var currentSpeed by remember { mutableStateOf(0f) }
+    var gpsStatus by remember { mutableStateOf("Aranıyor...") }
 
     val locationManager = remember { context.getSystemService(Context.LOCATION_SERVICE) as android.location.LocationManager }
     
@@ -187,9 +197,15 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                     mapViewInstance?.invalidate()
                 }
             }
-            override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
-            override fun onProviderEnabled(provider: String) {}
-            override fun onProviderDisabled(provider: String) {}
+            override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {
+                gpsStatus = when (status) {
+                    LocationProvider.AVAILABLE -> "Mükemmel"
+                    LocationProvider.TEMPORARILY_UNAVAILABLE -> "Zayıf"
+                    else -> "Aranıyor..."
+                }
+            }
+            override fun onProviderEnabled(provider: String) { gpsStatus = "İyi" }
+            override fun onProviderDisabled(provider: String) { gpsStatus  = "Kapalı" }
         }
     }
 
@@ -208,7 +224,8 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
             }
             myLocationOverlay?.lastFix?.let { fix ->
                 currentAltitude = fix.altitude
-                currentSpeed = if (fix.hasSpeed()) fix.speed * 3.6f else 0f // m/s'yi km/s'ye çevir
+                currentSpeed = if (fix.hasSpeed()) fix.speed * 3.6f else 0f
+                gpsStatus = "Mükemmel"
             } ?: run {
                 currentSpeed = 0f
             }
@@ -326,22 +343,31 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
             modifier = Modifier.fillMaxSize()
         )
 
-        // Sol Üst: Hız Göstergesi ve Temizle Butonu
+        // Sol Üst: Yuvarlak Hız Göstergesi ve Temizle Butonu
         Column(
             modifier = Modifier.align(Alignment.TopStart).padding(top = 16.dp, start = 16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f)),
-                shape = RoundedCornerShape(8.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            Box(
+                modifier = Modifier
+                    .size(80.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f)),
+                contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = "Hız: ${String.format("%.1f", currentSpeed)} km/s",
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = String.format("%.0f", currentSpeed),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 22.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "km/s",
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
 
             if (pastRouteIndex >= 0) {
@@ -355,6 +381,33 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                 ) {
                     Text("Haritayı Temizle")
                 }
+            }
+        }
+
+        // Üst Orta: GPS Sinyal Kalitesi Göstergesi
+        Card(
+            modifier = Modifier.align(Alignment.TopCenter).padding(top = 16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f)),
+            shape = RoundedCornerShape(12.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .clip(CircleShape)
+                        .background(if (gpsStatus == "Mükemmel" || gpsStatus == "İyi") Color.Green else Color.Yellow)
+                )
+                Text(
+                    text = "GPS: $gpsStatus",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
 
@@ -392,7 +445,7 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                     val myLoc = overlay.myLocation
                     if (myLoc != null) {
                         mapViewInstance?.controller?.animateTo(myLoc)
-                        mapViewInstance?.controller?.setZoom(15.0) // Zoom 15.0 olarak güncellendi
+                        mapViewInstance?.controller?.setZoom(15.0)
                     } else {
                         Toast.makeText(context, "Konum aranıyor, GPS açık olduğundan emin olun...", Toast.LENGTH_SHORT).show()
                     }
@@ -438,7 +491,6 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                     mapViewInstance?.overlays?.add(startMarker)
                     startMarker.showInfoWindow()
                     
-                    // Kayıt Başlatıldığında Zoom 18.0 Seviyesi
                     mapViewInstance?.controller?.animateTo(startLoc)
                     mapViewInstance?.controller?.setZoom(18.0) 
                     mapViewInstance?.invalidate()
@@ -495,8 +547,13 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
 }
 
 @Composable
-fun SettingsScreen(onShowRouteOnMap: (Int) -> Unit) {
+fun SettingsScreen(onShowRouteOnMap: (Int) -> Unit, onNavigateToMap: () -> Unit) {
     var currentSubScreen by remember { mutableStateOf("main") }
+
+    // Alt menülerdeyken geri tuşuna basıldığında uygulamadan çıkmak yerine ana ayarlara dön
+    BackHandler(enabled = currentSubScreen != "main") {
+        currentSubScreen = "main"
+    }
 
     when (currentSubScreen) {
         "main" -> {
@@ -510,14 +567,14 @@ fun SettingsScreen(onShowRouteOnMap: (Int) -> Unit) {
                 ListItem(headlineContent = { Text("Geçmiş Rotalar") }, supportingContent = { Text("Kaydedilen rotaları yönetin") }, modifier = Modifier.clickable { currentSubScreen = "past_routes" })
             }
         }
-        "map_type" -> { MapTypeScreen(onBack = { currentSubScreen = "main" }) }
+        "map_type" -> { MapTypeScreen(onBack = { currentSubScreen = "main" }, onNavigateToMap = onNavigateToMap) }
         "permissions" -> { PermissionsDetailScreen(onBack = { currentSubScreen = "main" }) }
         "past_routes" -> { PastRoutesScreen(onBack = { currentSubScreen = "main" }, onShowRouteOnMap = onShowRouteOnMap) }
     }
 }
 
 @Composable
-fun MapTypeScreen(onBack: () -> Unit) {
+fun MapTypeScreen(onBack: () -> Unit, onNavigateToMap: () -> Unit) {
     val context = LocalContext.current
     val prefs = context.getSharedPreferences("harita_prefs", Context.MODE_PRIVATE)
     var selectedType by remember { mutableStateOf(prefs.getString("map_type", "ROAD") ?: "ROAD") }
@@ -538,6 +595,7 @@ fun MapTypeScreen(onBack: () -> Unit) {
                 modifier = Modifier.clickable {
                     selectedType = "ROAD"
                     prefs.edit().putString("map_type", "ROAD").apply()
+                    onNavigateToMap() // Seçim yapıldığında doğrudan harita ekranına dön
                 }
             )
         }
@@ -548,6 +606,7 @@ fun MapTypeScreen(onBack: () -> Unit) {
                 modifier = Modifier.clickable {
                     selectedType = "HYBRID"
                     prefs.edit().putString("map_type", "HYBRID").apply()
+                    onNavigateToMap() // Seçim yapıldığında doğrudan harita ekranına dön
                 }
             )
         }
