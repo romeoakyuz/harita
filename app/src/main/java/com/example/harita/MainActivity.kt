@@ -142,11 +142,11 @@ fun MapScreen() {
         }
     }
 
-    // Maksimum Zoom Seviyesi 22'ye çıkarıldı
+    // Yol Görünümü (lyrs=r: Yerleşim yerleri ve Yollar + Ölçekleme)
     val googleRoads = remember {
         object : OnlineTileSourceBase(
             "GoogleRoads", 0, 22, 256, "", 
-            arrayOf("https://mt0.google.com/vt/lyrs=m&hl=tr&", "https://mt1.google.com/vt/lyrs=m&hl=tr&", "https://mt2.google.com/vt/lyrs=m&hl=tr&", "https://mt3.google.com/vt/lyrs=m&hl=tr&")
+            arrayOf("https://mt0.google.com/vt/lyrs=m,h&hl=tr&scale=2&", "https://mt1.google.com/vt/lyrs=m,h&hl=tr&scale=2&", "https://mt2.google.com/vt/lyrs=m,h&hl=tr&scale=2&", "https://mt3.google.com/vt/lyrs=m,h&hl=tr&scale=2&")
         ) {
             override fun getTileURLString(pMapTileIndex: Long): String {
                 val zoom = MapTileIndex.getZoom(pMapTileIndex)
@@ -157,10 +157,11 @@ fun MapScreen() {
         }
     }
 
+    // Uydu Hibrit Görünümü (lyrs=y,h: Uydu, Yollar ve Şehir/Köy İsimleri + Ölçekleme)
     val googleHybrid = remember {
         object : OnlineTileSourceBase(
             "GoogleHybrid", 0, 22, 256, "", 
-            arrayOf("https://mt0.google.com/vt/lyrs=y&hl=tr&", "https://mt1.google.com/vt/lyrs=y&hl=tr&", "https://mt2.google.com/vt/lyrs=y&hl=tr&", "https://mt3.google.com/vt/lyrs=y&hl=tr&")
+            arrayOf("https://mt0.google.com/vt/lyrs=y,h&hl=tr&scale=2&", "https://mt1.google.com/vt/lyrs=y,h&hl=tr&scale=2&", "https://mt2.google.com/vt/lyrs=y,h&hl=tr&scale=2&", "https://mt3.google.com/vt/lyrs=y,h&hl=tr&scale=2&")
         ) {
             override fun getTileURLString(pMapTileIndex: Long): String {
                 val zoom = MapTileIndex.getZoom(pMapTileIndex)
@@ -180,7 +181,7 @@ fun MapScreen() {
                     setBuiltInZoomControls(false)
                     
                     setMinZoomLevel(4.0)
-                    setMaxZoomLevel(22.0) // Harita zoom kısıtlaması kaldırıldı
+                    setMaxZoomLevel(22.0)
                     controller.setZoom(9.0)
                     
                     val rotationGestureOverlay = RotationGestureOverlay(this).apply {
