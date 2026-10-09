@@ -90,6 +90,32 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+// Navigasyon için Mavi Üçgen (Ok) Oluşturucu
+fun createBlueNavArrow(context: Context): android.graphics.Bitmap {
+    val sizePx = (42 * context.resources.displayMetrics.density).toInt()
+    val bitmap = android.graphics.Bitmap.createBitmap(sizePx, sizePx, android.graphics.Bitmap.Config.ARGB_8888)
+    val canvas = android.graphics.Canvas(bitmap)
+    val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+    
+    val path = android.graphics.Path()
+    path.moveTo(sizePx / 2f, 0f) // Tepe noktası
+    path.lineTo(sizePx.toFloat(), sizePx.toFloat()) // Sağ alt
+    path.lineTo(sizePx / 2f, sizePx * 0.75f) // İç orta alt
+    path.lineTo(0f, sizePx.toFloat()) // Sol alt
+    path.close()
+
+    paint.color = android.graphics.Color.BLUE
+    paint.style = android.graphics.Paint.Style.FILL
+    canvas.drawPath(path, paint)
+
+    paint.color = android.graphics.Color.WHITE
+    paint.style = android.graphics.Paint.Style.STROKE
+    paint.strokeWidth = 4f
+    canvas.drawPath(path, paint)
+
+    return bitmap
+}
+
 fun createSmallMarkerIcon(context: Context, resId: Int, color: Int): android.graphics.drawable.Drawable {
     val drawable = ContextCompat.getDrawable(context, resId)?.mutate()!!
     drawable.setTint(color)
@@ -125,13 +151,25 @@ fun RouteTrackerApp() {
                     icon = { Icon(Icons.Default.LocationOn, contentDescription = "Harita") },
                     label = { Text("Harita") },
                     selected = currentRoute == "map",
-                    onClick = { navController.navigate("map") { popUpTo(0) } }
+                    onClick = { 
+                        navController.navigate("map") { 
+                            popUpTo(navController.graph.startDestinationId) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        } 
+                    }
                 )
                 NavigationBarItem(
                     icon = { Icon(Icons.Default.Settings, contentDescription = "Ayarlar") },
                     label = { Text("Ayarlar") },
                     selected = currentRoute == "settings",
-                    onClick = { navController.navigate("settings") { popUpTo(0) } }
+                    onClick = { 
+                        navController.navigate("settings") { 
+                            popUpTo(navController.graph.startDestinationId) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        } 
+                    }
                 )
             }
         }
@@ -139,11 +177,11 @@ fun RouteTrackerApp() {
         NavHost(
             navController = navController,
             startDestination = "map",
-            modifier = Modifier.padding(innerPadding),
-            enterTransition = { fadeIn(animationSpec = tween(300)) },
-            exitTransition = { fadeOut(animationSpec = tween(300)) },
-            popEnterTransition = { fadeIn(animationSpec = tween(300)) },
-            popExitTransition = { fadeOut(animationSpec = tween(300)) }
+            modifier = Modifier.padding(innerPadding).fillMaxSize(),
+            enterTransition = { fadeIn(animationSpec = tween(500)) },
+            exitTransition = { fadeOut(animationSpec = tween(500)) },
+            popEnterTransition = { fadeIn(animationSpec = tween(500)) },
+            popExitTransition = { fadeOut(animationSpec = tween(500)) }
         ) {
             composable("map") { 
                 MapScreen(selectedPastRouteIndex) { selectedPastRouteIndex = -1 }
@@ -152,10 +190,18 @@ fun RouteTrackerApp() {
                 SettingsScreen(
                     onShowRouteOnMap = { index ->
                         selectedPastRouteIndex = index
-                        navController.navigate("map") { popUpTo(0) }
+                        navController.navigate("map") { 
+                            popUpTo(navController.graph.startDestinationId) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
                     },
                     onNavigateToMap = {
-                        navController.navigate("map") { popUpTo(0) }
+                        navController.navigate("map") { 
+                            popUpTo(navController.graph.startDestinationId) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
                     }
                 ) 
             }
@@ -185,8 +231,6 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
     var currentAccuracy by remember { mutableStateOf(0f) }
     var currentZoom by remember { mutableStateOf(4.0) }
     var gpsQuality by remember { mutableStateOf("İyi") }
-    
-    var isMapVisible by remember { mutableStateOf(true) }
 
     val locationManager = remember { context.getSystemService(Context.LOCATION_SERVICE) as LocationManager }
     
@@ -236,9 +280,12 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                     lastLoc?.let { totalDistance += it.distanceTo(location) }
                     lastLoc = location
 
+                    // Hız 3 km/s üzerinde ise Navigasyon Biçimi (Yön Takibi)
                     mapViewInstance?.controller?.animateTo(geo)
-                    if (location.hasBearing()) {
-                        mapViewInstance?.setMapOrientation(-location.bearing)
+                    if (currentSpeed > 3f) {
+                        if (location.hasBearing()) {
+                            mapViewInstance?.setMapOrientation(-location.bearing)
+                        }
                     }
                     mapViewInstance?.invalidate()
                 }
@@ -337,95 +384,94 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
 
     val widgetsLocked = mapPrefs.getBoolean("widgets_locked", false)
 
-    val showSpeed = mapPrefs.getBoolean("widget_speed", true)
+    // Tüm araçlar varsayılan olarak kapalı (false) yapıldı
+    val showSpeed = mapPrefs.getBoolean("widget_speed", false)
     var speedOffsetX by remember { mutableStateOf(mapPrefs.getInt("widget_speed_x", 16)) }
     var speedOffsetY by remember { mutableStateOf(mapPrefs.getInt("widget_speed_y", 16)) }
 
-    val showAltitude = mapPrefs.getBoolean("widget_altitude", true)
+    val showAltitude = mapPrefs.getBoolean("widget_altitude", false)
     var altOffsetX by remember { mutableStateOf(mapPrefs.getInt("widget_altitude_x", 16)) }
     var altOffsetY by remember { mutableStateOf(mapPrefs.getInt("widget_altitude_y", 16)) }
 
-    val showAccuracy = mapPrefs.getBoolean("widget_accuracy", true)
+    val showAccuracy = mapPrefs.getBoolean("widget_accuracy", false)
     var accOffsetX by remember { mutableStateOf(mapPrefs.getInt("widget_accuracy_x", 16)) }
     var accOffsetY by remember { mutableStateOf(mapPrefs.getInt("widget_accuracy_y", 120)) }
 
-    val showGpsQuality = mapPrefs.getBoolean("widget_gps_quality", true)
+    val showGpsQuality = mapPrefs.getBoolean("widget_gps_quality", false)
     var gpsOffsetX by remember { mutableStateOf(mapPrefs.getInt("widget_gps_quality_x", 16)) }
     var gpsOffsetY by remember { mutableStateOf(mapPrefs.getInt("widget_gps_quality_y", 180)) }
 
-    val showZoom = mapPrefs.getBoolean("widget_zoom", true)
+    val showZoom = mapPrefs.getBoolean("widget_zoom", false)
     var zoomOffsetX by remember { mutableStateOf(mapPrefs.getInt("widget_zoom_x", 16)) }
     var zoomOffsetY by remember { mutableStateOf(mapPrefs.getInt("widget_zoom_y", 240)) }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        AnimatedVisibility(
-            visible = isMapVisible,
-            enter = fadeIn(animationSpec = tween(300)),
-            exit = fadeOut(animationSpec = tween(300)),
-            modifier = Modifier.fillMaxSize()
-        ) {
-            AndroidView(
-                factory = { ctx ->
-                    MapView(ctx).apply {
-                        setTileSource(if (mapType == "ROAD") googleRoads else googleHybrid)
-                        setMultiTouchControls(true)
-                        setBuiltInZoomControls(false)
-                        setTilesScaledToDpi(true)
-                        tilesScaleFactor = 1.5f 
-                        
-                        setMinZoomLevel(2.0)
-                        setMaxZoomLevel(22.0)
-                        
-                        val isFirstLaunch = mapPrefs.getBoolean("is_first_launch", true)
-                        val defaultZoom = mapPrefs.getFloat("zoom_default", 4.0f).toDouble()
-                        val centerLat = if (isFirstLaunch) 39.0 else mapPrefs.getFloat("last_lat", 39.0f).toDouble()
-                        val centerLon = if (isFirstLaunch) 35.0 else mapPrefs.getFloat("last_lon", 35.0f).toDouble()
-                        
-                        setExpectedCenter(GeoPoint(centerLat, centerLon))
-                        controller.setZoom(defaultZoom)
-                        
-                        if (isFirstLaunch) {
-                            mapPrefs.edit().putBoolean("is_first_launch", false).apply()
-                        }
-                        
-                        val rotationGestureOverlay = RotationGestureOverlay(this).apply { isEnabled = true }
-                        overlays.add(rotationGestureOverlay)
-                        
-                        val provider = GpsMyLocationProvider(ctx).apply {
-                            try {
-                                addLocationSource(LocationManager.NETWORK_PROVIDER)
-                            } catch (e: Exception) {}
-                        }
-                        
-                        val overlay = MyLocationNewOverlay(provider, this)
-                        overlay.enableMyLocation()
-                        
-                        overlay.runOnFirstFix {
-                            post {
-                                overlay.myLocation?.let {
-                                    mapPrefs.edit()
-                                        .putFloat("last_lat", it.latitude.toFloat())
-                                        .putFloat("last_lon", it.longitude.toFloat())
-                                        .apply()
-                                }
+        AndroidView(
+            factory = { ctx ->
+                MapView(ctx).apply {
+                    setTileSource(if (mapType == "ROAD") googleRoads else googleHybrid)
+                    setMultiTouchControls(true)
+                    setBuiltInZoomControls(false)
+                    setTilesScaledToDpi(true)
+                    tilesScaleFactor = 1.5f 
+                    
+                    setMinZoomLevel(2.0)
+                    setMaxZoomLevel(22.0)
+                    
+                    val isFirstLaunch = mapPrefs.getBoolean("is_first_launch", true)
+                    val defaultZoom = mapPrefs.getFloat("zoom_default", 4.0f).toDouble()
+                    val centerLat = if (isFirstLaunch) 39.0 else mapPrefs.getFloat("last_lat", 39.0f).toDouble()
+                    val centerLon = if (isFirstLaunch) 35.0 else mapPrefs.getFloat("last_lon", 35.0f).toDouble()
+                    
+                    setExpectedCenter(GeoPoint(centerLat, centerLon))
+                    controller.setZoom(defaultZoom)
+                    
+                    if (isFirstLaunch) {
+                        mapPrefs.edit().putBoolean("is_first_launch", false).apply()
+                    }
+                    
+                    val rotationGestureOverlay = RotationGestureOverlay(this).apply { isEnabled = true }
+                    overlays.add(rotationGestureOverlay)
+                    
+                    val provider = GpsMyLocationProvider(ctx).apply {
+                        try {
+                            addLocationSource(LocationManager.NETWORK_PROVIDER)
+                        } catch (e: Exception) {}
+                    }
+                    
+                    val overlay = MyLocationNewOverlay(provider, this)
+                    // Mavi Ok İkonunu Tanımla ve Ekle
+                    val navArrow = createBlueNavArrow(ctx)
+                    overlay.setDirectionArrow(navArrow, navArrow)
+                    overlay.setPersonIcon(navArrow)
+                    
+                    overlay.enableMyLocation()
+                    
+                    overlay.runOnFirstFix {
+                        post {
+                            overlay.myLocation?.let {
+                                mapPrefs.edit()
+                                    .putFloat("last_lat", it.latitude.toFloat())
+                                    .putFloat("last_lon", it.longitude.toFloat())
+                                    .apply()
                             }
                         }
-                        
-                        overlays.add(overlay)
-                        myLocationOverlay = overlay
-                        mapViewInstance = this
                     }
-                },
-                update = { view ->
-                    val targetSource = if (mapType == "ROAD") googleRoads else googleHybrid
-                    if (view.tileProvider.tileSource != targetSource) {
-                        view.setTileSource(targetSource)
-                        view.invalidate()
-                    }
-                },
-                modifier = Modifier.fillMaxSize()
-            )
-        }
+                    
+                    overlays.add(overlay)
+                    myLocationOverlay = overlay
+                    mapViewInstance = this
+                }
+            },
+            update = { view ->
+                val targetSource = if (mapType == "ROAD") googleRoads else googleHybrid
+                if (view.tileProvider.tileSource != targetSource) {
+                    view.setTileSource(targetSource)
+                    view.invalidate()
+                }
+            },
+            modifier = Modifier.fillMaxSize()
+        )
 
         // Hız Göstergesi Widget
         if (showSpeed) {
@@ -622,20 +668,11 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
             onClick = { 
                 myLocationOverlay?.enableMyLocation()
                 val currentLoc = getBestCurrentLocation() ?: myLocationOverlay?.myLocation
-
                 if (currentLoc != null) {
-                    coroutineScope.launch {
-                        isMapVisible = false 
-                        delay(100L)          
-                        
-                        val locZoom = mapPrefs.getFloat("zoom_location", 15.0f).toDouble()
-                        mapViewInstance?.controller?.animateTo(currentLoc) 
-                        mapViewInstance?.controller?.setZoom(locZoom)
-                        mapViewInstance?.invalidate()
-                        
-                        delay(50L)
-                        isMapVisible = true  
-                    }
+                    val locZoom = mapPrefs.getFloat("zoom_location", 15.0f).toDouble()
+                    mapViewInstance?.controller?.animateTo(currentLoc) 
+                    mapViewInstance?.controller?.setZoom(locZoom)
+                    mapViewInstance?.invalidate()
                 } else {
                     Toast.makeText(context, "Konum aranıyor, GPS veya internet açık olduğundan emin olun...", Toast.LENGTH_SHORT).show()
                 }
@@ -689,16 +726,10 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                         mapViewInstance?.overlays?.add(startMarker)
                         startMarker.showInfoWindow()
                         
-                        coroutineScope.launch {
-                            isMapVisible = false
-                            delay(100L)
-                            val trackZoom = mapPrefs.getFloat("zoom_track", 18.0f).toDouble()
-                            mapViewInstance?.controller?.animateTo(startLoc)
-                            mapViewInstance?.controller?.setZoom(trackZoom) 
-                            mapViewInstance?.invalidate()
-                            delay(50L)
-                            isMapVisible = true
-                        }
+                        val trackZoom = mapPrefs.getFloat("zoom_track", 18.0f).toDouble()
+                        mapViewInstance?.controller?.animateTo(startLoc)
+                        mapViewInstance?.controller?.setZoom(trackZoom) 
+                        mapViewInstance?.invalidate()
 
                         try { 
                             locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 2000L, 2f, locationListener) 
@@ -797,11 +828,11 @@ fun WidgetsSettingsScreen(onBack: () -> Unit) {
     val prefs = context.getSharedPreferences("harita_prefs", Context.MODE_PRIVATE)
 
     var widgetsLocked by remember { mutableStateOf(prefs.getBoolean("widgets_locked", false)) }
-    var speedShow by remember { mutableStateOf(prefs.getBoolean("widget_speed", true)) }
-    var altShow by remember { mutableStateOf(prefs.getBoolean("widget_altitude", true)) }
-    var accShow by remember { mutableStateOf(prefs.getBoolean("widget_accuracy", true)) }
-    var gpsShow by remember { mutableStateOf(prefs.getBoolean("widget_gps_quality", true)) }
-    var zoomShow by remember { mutableStateOf(prefs.getBoolean("widget_zoom", true)) }
+    var speedShow by remember { mutableStateOf(prefs.getBoolean("widget_speed", false)) }
+    var altShow by remember { mutableStateOf(prefs.getBoolean("widget_altitude", false)) }
+    var accShow by remember { mutableStateOf(prefs.getBoolean("widget_accuracy", false)) }
+    var gpsShow by remember { mutableStateOf(prefs.getBoolean("widget_gps_quality", false)) }
+    var zoomShow by remember { mutableStateOf(prefs.getBoolean("widget_zoom", false)) }
 
     LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item {
