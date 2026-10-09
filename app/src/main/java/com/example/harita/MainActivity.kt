@@ -59,6 +59,7 @@ import org.osmdroid.tileprovider.tilesource.OnlineTileSourceBase
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.util.MapTileIndex
 import org.osmdroid.views.MapView
+import org.osmdroid.views.overlay.FolderOverlay
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polyline
 import org.osmdroid.views.overlay.gestures.RotationGestureOverlay
@@ -94,59 +95,71 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-// Dururken kullanılacak olan Mavi Yuvarlak Nokta
+// 1. Dururken kullanılacak Orijinal Mavi Nokta
 fun createBlueDot(context: Context): android.graphics.Bitmap {
     val sizePx = (30 * context.resources.displayMetrics.density).toInt()
     val bitmap = android.graphics.Bitmap.createBitmap(sizePx, sizePx, android.graphics.Bitmap.Config.ARGB_8888)
     val canvas = android.graphics.Canvas(bitmap)
     val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
-
-    // Beyaz Kenarlık
     paint.color = android.graphics.Color.WHITE
     paint.style = android.graphics.Paint.Style.FILL
     canvas.drawCircle(sizePx / 2f, sizePx / 2f, sizePx / 2f, paint)
-
-    // Mavi İç
     paint.color = android.graphics.Color.BLUE
     canvas.drawCircle(sizePx / 2f, sizePx / 2f, (sizePx / 2f) - 6f, paint)
-
     return bitmap
 }
 
-// Hareket Halindeyken kullanılacak Mavi Ok (Üçgen)
+// 2. Takip (Başlat) sırasında kullanılacak Navigasyon Üçgeni
 fun createBlueNavArrow(context: Context): android.graphics.Bitmap {
     val sizePx = (42 * context.resources.displayMetrics.density).toInt()
     val bitmap = android.graphics.Bitmap.createBitmap(sizePx, sizePx, android.graphics.Bitmap.Config.ARGB_8888)
     val canvas = android.graphics.Canvas(bitmap)
     val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
-    
     val path = android.graphics.Path()
     path.moveTo(sizePx / 2f, 0f)
     path.lineTo(sizePx.toFloat(), sizePx.toFloat())
     path.lineTo(sizePx / 2f, sizePx * 0.75f)
     path.lineTo(0f, sizePx.toFloat())
     path.close()
-
     paint.color = android.graphics.Color.BLUE
     paint.style = android.graphics.Paint.Style.FILL
     canvas.drawPath(path, paint)
-
     paint.color = android.graphics.Color.WHITE
     paint.style = android.graphics.Paint.Style.STROKE
     paint.strokeWidth = 4f
     canvas.drawPath(path, paint)
-
     return bitmap
 }
 
-fun createSmallMarkerIcon(context: Context, resId: Int, color: Int): android.graphics.drawable.Drawable {
-    val drawable = ContextCompat.getDrawable(context, resId)?.mutate()!!
-    drawable.setTint(color)
-    val sizePx = (28 * context.resources.displayMetrics.density).toInt()
+// 3. Başlangıç (Yeşil) ve Bitiş (Kırmızı) İçin Yazısız Temiz Noktalar
+fun createSolidDot(context: Context, color: Int): android.graphics.drawable.Drawable {
+    val sizePx = (24 * context.resources.displayMetrics.density).toInt()
     val bitmap = android.graphics.Bitmap.createBitmap(sizePx, sizePx, android.graphics.Bitmap.Config.ARGB_8888)
     val canvas = android.graphics.Canvas(bitmap)
-    drawable.setBounds(0, 0, canvas.width, canvas.height)
-    drawable.draw(canvas)
+    val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+    paint.color = color
+    paint.style = android.graphics.Paint.Style.FILL
+    canvas.drawCircle(sizePx / 2f, sizePx / 2f, sizePx / 2f, paint)
+    paint.color = android.graphics.Color.WHITE
+    paint.style = android.graphics.Paint.Style.STROKE
+    paint.strokeWidth = 4f
+    canvas.drawCircle(sizePx / 2f, sizePx / 2f, (sizePx / 2f) - 2f, paint)
+    return android.graphics.drawable.BitmapDrawable(context.resources, bitmap)
+}
+
+// 4. Kırmızı çizgi üzerine her kayıtta işlenecek küçük işaret noktası
+fun createRoutePointIcon(context: Context): android.graphics.drawable.Drawable {
+    val sizePx = (14 * context.resources.displayMetrics.density).toInt()
+    val bitmap = android.graphics.Bitmap.createBitmap(sizePx, sizePx, android.graphics.Bitmap.Config.ARGB_8888)
+    val canvas = android.graphics.Canvas(bitmap)
+    val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+    paint.color = android.graphics.Color.WHITE
+    paint.style = android.graphics.Paint.Style.FILL
+    canvas.drawCircle(sizePx / 2f, sizePx / 2f, sizePx / 2f, paint)
+    paint.color = android.graphics.Color.RED
+    paint.style = android.graphics.Paint.Style.STROKE
+    paint.strokeWidth = 4f
+    canvas.drawCircle(sizePx / 2f, sizePx / 2f, (sizePx / 2f) - 2f, paint)
     return android.graphics.drawable.BitmapDrawable(context.resources, bitmap)
 }
 
@@ -175,11 +188,13 @@ fun RouteTrackerApp() {
                     label = { Text("Harita") },
                     selected = currentRoute == "map",
                     onClick = { 
-                        navController.navigate("map") { 
-                            popUpTo(navController.graph.startDestinationId) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
-                        } 
+                        if (currentRoute != "map") {
+                            navController.navigate("map") { 
+                                popUpTo(navController.graph.startDestinationId) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            } 
+                        }
                     }
                 )
                 NavigationBarItem(
@@ -187,11 +202,13 @@ fun RouteTrackerApp() {
                     label = { Text("Ayarlar") },
                     selected = currentRoute == "settings",
                     onClick = { 
-                        navController.navigate("settings") { 
-                            popUpTo(navController.graph.startDestinationId) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
-                        } 
+                        if (currentRoute != "settings") {
+                            navController.navigate("settings") { 
+                                popUpTo(navController.graph.startDestinationId) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            } 
+                        }
                     }
                 )
             }
@@ -200,11 +217,11 @@ fun RouteTrackerApp() {
         NavHost(
             navController = navController,
             startDestination = "map",
-            modifier = Modifier.padding(innerPadding).fillMaxSize(),
-            enterTransition = { fadeIn(animationSpec = tween(500)) },
-            exitTransition = { fadeOut(animationSpec = tween(500)) },
-            popEnterTransition = { fadeIn(animationSpec = tween(500)) },
-            popExitTransition = { fadeOut(animationSpec = tween(500)) }
+            modifier = Modifier.padding(innerPadding).fillMaxSize().background(MaterialTheme.colorScheme.background),
+            enterTransition = { fadeIn(animationSpec = tween(400)) },
+            exitTransition = { fadeOut(animationSpec = tween(400)) },
+            popEnterTransition = { fadeIn(animationSpec = tween(400)) },
+            popExitTransition = { fadeOut(animationSpec = tween(400)) }
         ) {
             composable("map") { 
                 MapScreen(selectedPastRouteIndex) { selectedPastRouteIndex = -1 }
@@ -243,6 +260,7 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
     var mapViewInstance by remember { mutableStateOf<MapView?>(null) }
     var myLocationOverlay by remember { mutableStateOf<MyLocationNewOverlay?>(null) }
     var routePolyline by remember { mutableStateOf<Polyline?>(null) }
+    var routePointsFolder by remember { mutableStateOf<FolderOverlay?>(null) }
 
     var elapsedSeconds by remember { mutableStateOf(0L) }
     var totalDistance by remember { mutableStateOf(0f) }
@@ -257,16 +275,15 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
     val locationManager = remember { context.getSystemService(Context.LOCATION_SERVICE) as LocationManager }
     val sensorManager = remember { context.getSystemService(Context.SENSOR_SERVICE) as SensorManager }
 
-    // Pusula Sensörü için Dinleyici (Sadece yürürken haritayı çevirir)
     var lastCompassUpdate = 0L
     val sensorListener = remember {
         object : SensorEventListener {
             override fun onSensorChanged(event: SensorEvent) {
                 if (event.sensor.type == Sensor.TYPE_ORIENTATION) {
                     val now = System.currentTimeMillis()
-                    if (now - lastCompassUpdate > 100) { // Saniyede max 10 güncelleme (performans için)
+                    if (now - lastCompassUpdate > 100) {
                         lastCompassUpdate = now
-                        if (isTracking && currentSpeed <= 3f) { // Hız düşükse pusulaya göre dön
+                        if (isTracking && currentSpeed <= 3f) {
                             mapViewInstance?.setMapOrientation(-event.values[0])
                         }
                     }
@@ -290,15 +307,11 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
 
             val gpsLoc = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
             val netLoc = locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
-
             val bestLoc: Location? = when {
                 gpsLoc != null && netLoc != null -> if (gpsLoc.time > netLoc.time) gpsLoc else netLoc
                 else -> gpsLoc ?: netLoc
             }
-
-            if (bestLoc != null) {
-                return GeoPoint(bestLoc.latitude, bestLoc.longitude)
-            }
+            if (bestLoc != null) return GeoPoint(bestLoc.latitude, bestLoc.longitude)
         } catch (e: Exception) { e.printStackTrace() }
 
         myLocationOverlay?.myLocation?.let { return it }
@@ -308,11 +321,7 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
     val locationListener = remember {
         object : android.location.LocationListener {
             override fun onLocationChanged(location: Location) {
-                mapPrefs.edit()
-                    .putFloat("last_lat", location.latitude.toFloat())
-                    .putFloat("last_lon", location.longitude.toFloat())
-                    .apply()
-
+                mapPrefs.edit().putFloat("last_lat", location.latitude.toFloat()).putFloat("last_lon", location.longitude.toFloat()).apply()
                 currentAccuracy = if (location.hasAccuracy()) location.accuracy else 0f
                 gpsQuality = when {
                     currentAccuracy <= 5f -> "Mükemmel"
@@ -322,49 +331,39 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                 }
 
                 if (isTracking) {
-                    // Ayarları anlık oku (Sabit Katı Kurallar)
                     val recAcc = mapPrefs.getFloat("record_gps_accuracy", 50f)
                     val recMin = mapPrefs.getFloat("record_min_dist", 10f)
                     val recMax = mapPrefs.getFloat("record_max_dist", 500f)
 
-                    // 1. KURAL: Eğer cihazın doğruluk sapması ayarımızdan büyükse bu konumu HİÇ YAZMA, GÖRMEZDEN GEL!
-                    if (location.hasAccuracy() && location.accuracy > recAcc) {
-                        return 
-                    }
+                    // 0f = Kapalı demektir
+                    if (recAcc > 0f && location.hasAccuracy() && location.accuracy > recAcc) return 
 
                     val geo = GeoPoint(location.latitude, location.longitude)
                     var isPointValid = true
 
                     if (lastLoc != null) {
                         val dist = lastLoc!!.distanceTo(location)
-                        
-                        // 2. KURAL: Kapalı alanda küçük zıplamaları (jitter) önle. 10m ayarlandıysa 9m kımıldamayı kaydetmez.
-                        if (dist < recMin) {
-                            isPointValid = false
-                        } 
-                        // 3. KURAL: GPS aniden 500m öteye atarsa (Max Mesafe), bunu rotaya ekleme (hatalı veri).
-                        else if (dist > recMax) {
-                            isPointValid = false
-                        } 
-                        // Veri temizse mesafeyi topla!
-                        else {
-                            totalDistance += dist
-                        }
+                        if (recMin > 0f && dist < recMin) isPointValid = false
+                        else if (recMax > 0f && dist > recMax) isPointValid = false
+                        else totalDistance += dist
                     }
 
-                    // Eğer kuralları geçtiyse çizgiye ekle ve son geçerli nokta olarak kaydet.
                     if (isPointValid) {
                         routePolyline?.addPoint(geo)
-                        lastLoc = location 
+                        lastLoc = location
+                        
+                        // Çizgi üzerine GPS nokta işaretçisi ekle
+                        routePointsFolder?.add(Marker(mapViewInstance).apply {
+                            position = geo
+                            icon = createRoutePointIcon(context)
+                            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+                            setOnMarkerClickListener { _, _ -> true }
+                        })
                     }
 
                     mapViewInstance?.controller?.animateTo(geo)
-                    
-                    // Eğer araç hızına çıktıysa (3 km/s üstü), pusulayı bırak GPS yönüne göre dön.
-                    if (currentSpeed > 3f) {
-                        if (location.hasBearing()) {
-                            mapViewInstance?.setMapOrientation(-location.bearing)
-                        }
+                    if (currentSpeed > 3f && location.hasBearing()) {
+                        mapViewInstance?.setMapOrientation(-location.bearing)
                     }
                     mapViewInstance?.invalidate()
                 }
@@ -385,7 +384,6 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
             if (isTracking) elapsedSeconds++
             
             mapViewInstance?.let { currentZoom = it.zoomLevelDouble }
-
             myLocationOverlay?.lastFix?.let { fix ->
                 currentAltitude = fix.altitude
                 currentSpeed = if (fix.hasSpeed()) fix.speed * 3.6f else 0f
@@ -396,9 +394,7 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
     }
 
     DisposableEffect(Unit) {
-        onDispose {
-            try { locationManager.removeUpdates(locationListener) } catch (e: Exception) {}
-        }
+        onDispose { try { locationManager.removeUpdates(locationListener) } catch (e: Exception) {} }
     }
 
     LaunchedEffect(pastRouteIndex) {
@@ -408,22 +404,37 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
             if (pastRouteIndex < arr.length()) {
                 val routeObj = arr.getJSONObject(pastRouteIndex)
                 val pts = routeObj.getJSONArray("points")
+                
                 val polyline = Polyline().apply {
-                    outlinePaint.color = android.graphics.Color.BLUE
+                    outlinePaint.color = android.graphics.Color.RED
                     outlinePaint.strokeWidth = 14f
                 }
+                val folder = FolderOverlay().apply { name = "route_points" }
+                
                 for (i in 0 until pts.length()) {
                     val pt = pts.getJSONObject(i)
-                    polyline.addPoint(GeoPoint(pt.getDouble("lat"), pt.getDouble("lon")))
+                    val geo = GeoPoint(pt.getDouble("lat"), pt.getDouble("lon"))
+                    polyline.addPoint(geo)
+                    folder.add(Marker(mapViewInstance).apply {
+                        position = geo
+                        icon = createRoutePointIcon(context)
+                        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+                        setOnMarkerClickListener { _, _ -> true }
+                    })
                 }
-                mapViewInstance?.overlays?.removeAll { it is Polyline || it is Marker }
-                mapViewInstance?.overlays?.add(polyline)
-                mapViewInstance?.invalidate()
                 
+                mapViewInstance?.overlays?.removeAll { it is Polyline || it is Marker || (it is FolderOverlay && it.name == "route_points") }
+                mapViewInstance?.overlays?.add(polyline)
+                mapViewInstance?.overlays?.add(folder)
+                
+                // Başlangıç ve Bitiş Noktalarını da koyalım
                 if (polyline.actualPoints.isNotEmpty()) {
+                    mapViewInstance?.overlays?.add(Marker(mapViewInstance).apply { position = polyline.actualPoints.first(); setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER); icon = createSolidDot(context, android.graphics.Color.GREEN); setOnMarkerClickListener { _, _ -> true } })
+                    mapViewInstance?.overlays?.add(Marker(mapViewInstance).apply { position = polyline.actualPoints.last(); setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER); icon = createSolidDot(context, android.graphics.Color.RED); setOnMarkerClickListener { _, _ -> true } })
                     mapViewInstance?.controller?.animateTo(polyline.actualPoints.first())
                     mapViewInstance?.controller?.setZoom(16.0)
                 }
+                mapViewInstance?.invalidate()
             }
         }
     }
@@ -486,8 +497,7 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                     
                     setExpectedCenter(GeoPoint(centerLat, centerLon))
                     controller.setZoom(defaultZoom)
-                    
-                    if (isFirstLaunch) { mapPrefs.edit().putBoolean("is_first_launch", false).apply() }
+                    if (isFirstLaunch) mapPrefs.edit().putBoolean("is_first_launch", false).apply()
                     
                     val rotationGestureOverlay = RotationGestureOverlay(this).apply { isEnabled = true }
                     overlays.add(rotationGestureOverlay)
@@ -495,23 +505,17 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                     val provider = GpsMyLocationProvider(ctx).apply {
                         try { addLocationSource(LocationManager.NETWORK_PROVIDER) } catch (e: Exception) {}
                     }
-                    
                     val overlay = MyLocationNewOverlay(provider, this)
                     
-                    // İki Farklı İkonu Entegre Etme (Dururken Nokta, Giderken Üçgen)
+                    // Başlangıçta ikisi de yuvarlak nokta (duruyor)
                     val blueDot = createBlueDot(ctx)
-                    val navArrow = createBlueNavArrow(ctx)
-                    // personBitmap: Sabit ikon (nokta) | directionArrowBitmap: Hareketli ikon (üçgen)
-                    overlay.setDirectionArrow(blueDot, navArrow)
+                    overlay.setDirectionArrow(blueDot, blueDot)
                     overlay.setPersonIcon(blueDot) 
-                    
                     overlay.enableMyLocation()
                     
                     overlay.runOnFirstFix {
                         post {
-                            overlay.myLocation?.let {
-                                mapPrefs.edit().putFloat("last_lat", it.latitude.toFloat()).putFloat("last_lon", it.longitude.toFloat()).apply()
-                            }
+                            overlay.myLocation?.let { mapPrefs.edit().putFloat("last_lat", it.latitude.toFloat()).putFloat("last_lon", it.longitude.toFloat()).apply() }
                         }
                     }
                     
@@ -551,7 +555,7 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                     if (pastRouteIndex >= 0) {
                         Button(onClick = { 
                             onClearPastRoute()
-                            mapViewInstance?.overlays?.removeAll { it is Polyline || (it is Marker && it.title != "Start" && it.title != "Stop") }
+                            mapViewInstance?.overlays?.removeAll { it is Polyline || it is Marker || (it is FolderOverlay && it.name == "route_points") }
                             mapViewInstance?.invalidate()
                         }, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { Text("Haritayı Temizle") }
                     }
@@ -561,68 +565,40 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
 
         if (showAltitude) {
             Box(modifier = Modifier.offset { IntOffset(altOffsetX, altOffsetY) }.pointerInput(widgetsLocked) {
-                if (!widgetsLocked) {
-                    detectDragGestures { _, dragAmount ->
-                        altOffsetX += dragAmount.x.roundToInt(); altOffsetY += dragAmount.y.roundToInt()
-                        mapPrefs.edit().putInt("widget_altitude_x", altOffsetX).putInt("widget_altitude_y", altOffsetY).apply()
-                    }
-                }
+                if (!widgetsLocked) detectDragGestures { _, dragAmount -> altOffsetX += dragAmount.x.roundToInt(); altOffsetY += dragAmount.y.roundToInt(); mapPrefs.edit().putInt("widget_altitude_x", altOffsetX).putInt("widget_altitude_y", altOffsetY).apply() }
             }) {
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f)), shape = RoundedCornerShape(8.dp), elevation = CardDefaults.cardElevation(4.dp)) {
-                    Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), horizontalAlignment = Alignment.End) {
-                        Text("Rakım: ${currentAltitude.toInt()} m", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
+                    Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), horizontalAlignment = Alignment.End) { Text("Rakım: ${currentAltitude.toInt()} m", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 }
             }
         }
 
         if (showAccuracy) {
             Box(modifier = Modifier.offset { IntOffset(accOffsetX, accOffsetY) }.pointerInput(widgetsLocked) {
-                if (!widgetsLocked) {
-                    detectDragGestures { _, dragAmount ->
-                        accOffsetX += dragAmount.x.roundToInt(); accOffsetY += dragAmount.y.roundToInt()
-                        mapPrefs.edit().putInt("widget_accuracy_x", accOffsetX).putInt("widget_accuracy_y", accOffsetY).apply()
-                    }
-                }
+                if (!widgetsLocked) detectDragGestures { _, dragAmount -> accOffsetX += dragAmount.x.roundToInt(); accOffsetY += dragAmount.y.roundToInt(); mapPrefs.edit().putInt("widget_accuracy_x", accOffsetX).putInt("widget_accuracy_y", accOffsetY).apply() }
             }) {
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f)), shape = RoundedCornerShape(8.dp), elevation = CardDefaults.cardElevation(4.dp)) {
-                    Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
-                        Text("Doğruluk: ±${currentAccuracy.toInt()} m", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
+                    Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) { Text("Doğruluk: ±${currentAccuracy.toInt()} m", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 }
             }
         }
 
         if (showGpsQuality) {
             Box(modifier = Modifier.offset { IntOffset(gpsOffsetX, gpsOffsetY) }.pointerInput(widgetsLocked) {
-                if (!widgetsLocked) {
-                    detectDragGestures { _, dragAmount ->
-                        gpsOffsetX += dragAmount.x.roundToInt(); gpsOffsetY += dragAmount.y.roundToInt()
-                        mapPrefs.edit().putInt("widget_gps_quality_x", gpsOffsetX).putInt("widget_gps_quality_y", gpsOffsetY).apply()
-                    }
-                }
+                if (!widgetsLocked) detectDragGestures { _, dragAmount -> gpsOffsetX += dragAmount.x.roundToInt(); gpsOffsetY += dragAmount.y.roundToInt(); mapPrefs.edit().putInt("widget_gps_quality_x", gpsOffsetX).putInt("widget_gps_quality_y", gpsOffsetY).apply() }
             }) {
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f)), shape = RoundedCornerShape(8.dp), elevation = CardDefaults.cardElevation(4.dp)) {
-                    Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
-                        Text("GPS: $gpsQuality", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
+                    Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) { Text("GPS: $gpsQuality", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 }
             }
         }
 
         if (showZoom) {
             Box(modifier = Modifier.offset { IntOffset(zoomOffsetX, zoomOffsetY) }.pointerInput(widgetsLocked) {
-                if (!widgetsLocked) {
-                    detectDragGestures { _, dragAmount ->
-                        zoomOffsetX += dragAmount.x.roundToInt(); zoomOffsetY += dragAmount.y.roundToInt()
-                        mapPrefs.edit().putInt("widget_zoom_x", zoomOffsetX).putInt("widget_zoom_y", zoomOffsetY).apply()
-                    }
-                }
+                if (!widgetsLocked) detectDragGestures { _, dragAmount -> zoomOffsetX += dragAmount.x.roundToInt(); zoomOffsetY += dragAmount.y.roundToInt(); mapPrefs.edit().putInt("widget_zoom_x", zoomOffsetX).putInt("widget_zoom_y", zoomOffsetY).apply() }
             }) {
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f)), shape = RoundedCornerShape(8.dp), elevation = CardDefaults.cardElevation(4.dp)) {
-                    Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
-                        Text("Zoom: ${String.format("%.1f", currentZoom)}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
+                    Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) { Text("Zoom: ${String.format("%.1f", currentZoom)}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 }
             }
         }
@@ -657,36 +633,41 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                 Button(
                     onClick = { 
                         val hasPerm = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
-                        if (!hasPerm) {
-                            Toast.makeText(context, "Önce İzinler bölümünden Konum izni verin!", Toast.LENGTH_SHORT).show()
-                            return@Button
-                        }
+                        if (!hasPerm) { Toast.makeText(context, "Konum izni verin!", Toast.LENGTH_SHORT).show(); return@Button }
+                        
                         myLocationOverlay?.enableMyLocation()
                         val startLoc = getBestCurrentLocation() ?: myLocationOverlay?.myLocation
-                        if (startLoc == null) {
-                            Toast.makeText(context, "Konum henüz bulunamadı...", Toast.LENGTH_SHORT).show()
-                            return@Button
-                        }
+                        if (startLoc == null) { Toast.makeText(context, "Konum henüz bulunamadı...", Toast.LENGTH_SHORT).show(); return@Button }
+                        
                         onClearPastRoute() 
                         isTracking = true
                         elapsedSeconds = 0L
                         totalDistance = 0f
-                        
-                        // Son konumu zorla okuyup başlatıyoruz
-                        lastLoc = startLoc.let {
-                            val l = Location(LocationManager.GPS_PROVIDER)
-                            l.latitude = it.latitude; l.longitude = it.longitude
-                            l
-                        }
+                        lastLoc = startLoc.let { val l = Location(LocationManager.GPS_PROVIDER); l.latitude = it.latitude; l.longitude = it.longitude; l }
 
-                        mapViewInstance?.overlays?.removeAll { it is Marker || it is Polyline }
+                        // Noktadan -> Üçgene Geçiş
+                        val navArrow = createBlueNavArrow(context)
+                        myLocationOverlay?.setPersonIcon(navArrow)
+                        myLocationOverlay?.setDirectionArrow(navArrow, navArrow)
+
+                        mapViewInstance?.overlays?.removeAll { it is Marker || it is Polyline || (it is FolderOverlay && it.name == "route_points") }
+                        
+                        // Klasör overlay oluştur (Noktalar için)
+                        val folder = FolderOverlay().apply { name = "route_points" }
+                        mapViewInstance?.overlays?.add(folder)
+                        routePointsFolder = folder
+
+                        // Çizgi
                         val polyline = Polyline().apply { outlinePaint.color = android.graphics.Color.RED; outlinePaint.strokeWidth = 14f; addPoint(startLoc) }
                         mapViewInstance?.overlays?.add(polyline)
                         routePolyline = polyline
 
-                        val startMarker = Marker(mapViewInstance).apply { position = startLoc; title = "Start"; setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM); icon = createSmallMarkerIcon(context, android.R.drawable.presence_online, android.graphics.Color.GREEN) }
+                        // Başlangıç işareti (Sadece Yeşil Nokta, Yazısız)
+                        val startMarker = Marker(mapViewInstance).apply { position = startLoc; setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER); icon = createSolidDot(context, android.graphics.Color.GREEN); setOnMarkerClickListener { _, _ -> true } }
                         mapViewInstance?.overlays?.add(startMarker)
-                        startMarker.showInfoWindow()
+                        
+                        // Çizgi üstü ilk nokta
+                        folder.add(Marker(mapViewInstance).apply { position = startLoc; icon = createRoutePointIcon(context); setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER); setOnMarkerClickListener { _, _ -> true } })
                         
                         val trackZoom = mapPrefs.getFloat("zoom_track", 18.0f).toDouble()
                         mapViewInstance?.controller?.animateTo(startLoc)
@@ -707,12 +688,18 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                         isTracking = false
                         try { locationManager.removeUpdates(locationListener) } catch (e: Exception) {}
                         mapViewInstance?.setMapOrientation(0f)
+                        
+                        // Üçgenden -> Noktaya Geri Dönüş
+                        val blueDot = createBlueDot(context)
+                        myLocationOverlay?.setPersonIcon(blueDot)
+                        myLocationOverlay?.setDirectionArrow(blueDot, blueDot)
+
                         val points = routePolyline?.actualPoints
                         val endLoc = myLocationOverlay?.myLocation ?: points?.lastOrNull()
                         if (endLoc != null) {
-                            val endMarker = Marker(mapViewInstance).apply { position = endLoc; title = "Stop"; setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM); icon = createSmallMarkerIcon(context, android.R.drawable.presence_busy, android.graphics.Color.RED) }
+                            // Bitiş İşareti (Sadece Kırmızı Nokta, Yazısız)
+                            val endMarker = Marker(mapViewInstance).apply { position = endLoc; setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER); icon = createSolidDot(context, android.graphics.Color.RED); setOnMarkerClickListener { _, _ -> true } }
                             mapViewInstance?.overlays?.add(endMarker)
-                            endMarker.showInfoWindow()
                             mapViewInstance?.invalidate()
                         }
                         if (!points.isNullOrEmpty()) {
@@ -744,11 +731,7 @@ fun SettingsScreen(onShowRouteOnMap: (Int) -> Unit, onNavigateToMap: () -> Unit)
     var currentSubScreen by remember { mutableStateOf("main") }
 
     BackHandler {
-        if (currentSubScreen != "main") {
-            currentSubScreen = "main"
-        } else {
-            onNavigateToMap()
-        }
+        if (currentSubScreen != "main") currentSubScreen = "main" else onNavigateToMap()
     }
 
     when (currentSubScreen) {
@@ -788,17 +771,17 @@ fun RouteRecordSettingsScreen(onBack: () -> Unit) {
     val freqValues = listOf(1000L, 2000L, 3000L, 5000L, 10000L)
     var freqIndex by remember { mutableStateOf(freqValues.indexOf(prefs.getLong("record_freq", 1000L)).takeIf { it >= 0 } ?: 0) }
 
-    val minOptions = listOf("0 m", "5 m", "10 m", "20 m", "50 m")
+    val minOptions = listOf("Kapalı", "5 m", "10 m", "20 m", "50 m")
     val minValues = listOf(0f, 5f, 10f, 20f, 50f)
     var minIndex by remember { mutableStateOf(minValues.indexOf(prefs.getFloat("record_min_dist", 10f)).takeIf { it >= 0 } ?: 2) }
 
-    val maxOptions = listOf("100 m", "200 m", "500 m", "1 km", "2 km")
-    val maxValues = listOf(100f, 200f, 500f, 1000f, 2000f)
-    var maxIndex by remember { mutableStateOf(maxValues.indexOf(prefs.getFloat("record_max_dist", 500f)).takeIf { it >= 0 } ?: 2) }
+    val maxOptions = listOf("Kapalı", "100 m", "200 m", "500 m", "1 km", "2 km")
+    val maxValues = listOf(0f, 100f, 200f, 500f, 1000f, 2000f)
+    var maxIndex by remember { mutableStateOf(maxValues.indexOf(prefs.getFloat("record_max_dist", 500f)).takeIf { it >= 0 } ?: 3) }
 
-    val accOptions = listOf("10 m", "20 m", "50 m", "100 m")
-    val accValues = listOf(10f, 20f, 50f, 100f)
-    var accIndex by remember { mutableStateOf(accValues.indexOf(prefs.getFloat("record_gps_accuracy", 50f)).takeIf { it >= 0 } ?: 2) }
+    val accOptions = listOf("Kapalı", "10 m", "20 m", "50 m", "100 m")
+    val accValues = listOf(0f, 10f, 20f, 50f, 100f)
+    var accIndex by remember { mutableStateOf(accValues.indexOf(prefs.getFloat("record_gps_accuracy", 50f)).takeIf { it >= 0 } ?: 3) }
 
     LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item {
@@ -810,54 +793,10 @@ fun RouteRecordSettingsScreen(onBack: () -> Unit) {
         }
         item { Divider() }
 
-        item {
-            SettingsDropdown(
-                label = "Kayıt Sıklığı",
-                description = "GPS cihazı istek sıklığı",
-                options = freqOptions,
-                selectedIndex = freqIndex,
-                onOptionSelected = { idx -> 
-                    freqIndex = idx
-                    prefs.edit().putLong("record_freq", freqValues[idx]).apply()
-                }
-            )
-        }
-        item {
-            SettingsDropdown(
-                label = "Minimum Mesafe",
-                description = "Kayıt sırasında komşu noktalar arası minimum mesafe",
-                options = minOptions,
-                selectedIndex = minIndex,
-                onOptionSelected = { idx -> 
-                    minIndex = idx
-                    prefs.edit().putFloat("record_min_dist", minValues[idx]).apply()
-                }
-            )
-        }
-        item {
-            SettingsDropdown(
-                label = "Maksimum Mesafe",
-                description = "Bir bölümdeki noktalar arası maksimum mesafe",
-                options = maxOptions,
-                selectedIndex = maxIndex,
-                onOptionSelected = { idx -> 
-                    maxIndex = idx
-                    prefs.edit().putFloat("record_max_dist", maxValues[idx]).apply()
-                }
-            )
-        }
-        item {
-            SettingsDropdown(
-                label = "GPS Doğruluğu",
-                description = "Doğruluk bundan düşükse, konum yoksayılır",
-                options = accOptions,
-                selectedIndex = accIndex,
-                onOptionSelected = { idx -> 
-                    accIndex = idx
-                    prefs.edit().putFloat("record_gps_accuracy", accValues[idx]).apply()
-                }
-            )
-        }
+        item { SettingsDropdown("Kayıt Sıklığı", "GPS cihazı istek sıklığı", freqOptions, freqIndex) { idx -> freqIndex = idx; prefs.edit().putLong("record_freq", freqValues[idx]).apply() } }
+        item { SettingsDropdown("Minimum Mesafe", "Kayıt sırasında komşu noktalar arası minimum mesafe", minOptions, minIndex) { idx -> minIndex = idx; prefs.edit().putFloat("record_min_dist", minValues[idx]).apply() } }
+        item { SettingsDropdown("Maksimum Mesafe", "Bir bölümdeki noktalar arası maksimum mesafe", maxOptions, maxIndex) { idx -> maxIndex = idx; prefs.edit().putFloat("record_max_dist", maxValues[idx]).apply() } }
+        item { SettingsDropdown("GPS Doğruluğu", "Doğruluk bundan düşükse, konum yoksayılır", accOptions, accIndex) { idx -> accIndex = idx; prefs.edit().putFloat("record_gps_accuracy", accValues[idx]).apply() } }
     }
 }
 
@@ -868,32 +807,10 @@ fun SettingsDropdown(label: String, description: String, options: List<String>, 
     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
         Text(label, fontWeight = FontWeight.Bold, fontSize = 16.sp)
         Text(description, fontSize = 12.sp, color = Color.Gray, modifier = Modifier.padding(bottom = 8.dp))
-        
-        ExposedDropdownMenuBox(
-            expanded = expanded,
-            onExpandedChange = { expanded = !expanded }
-        ) {
-            OutlinedTextField(
-                value = options.getOrElse(selectedIndex) { "" },
-                onValueChange = {},
-                readOnly = true,
-                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                modifier = Modifier.menuAnchor().fillMaxWidth(),
-                colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors()
-            )
-            ExposedDropdownMenu(
-                expanded = expanded,
-                onDismissRequest = { expanded = false }
-            ) {
-                options.forEachIndexed { index, selectionOption ->
-                    DropdownMenuItem(
-                        text = { Text(selectionOption) },
-                        onClick = {
-                            onOptionSelected(index)
-                            expanded = false
-                        }
-                    )
-                }
+        ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
+            OutlinedTextField(value = options.getOrElse(selectedIndex) { "" }, onValueChange = {}, readOnly = true, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) }, modifier = Modifier.menuAnchor().fillMaxWidth(), colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors())
+            ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                options.forEachIndexed { index, selectionOption -> DropdownMenuItem(text = { Text(selectionOption) }, onClick = { onOptionSelected(index); expanded = false }) }
             }
         }
     }
@@ -922,60 +839,19 @@ fun WidgetsSettingsScreen(onBack: () -> Unit) {
         item { Divider() }
 
         item {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-                modifier = Modifier.fillMaxWidth()
-            ) {
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer), modifier = Modifier.fillMaxWidth()) {
                 Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Column {
-                        Text("Düzeni Kilitle", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                        Text(if (widgetsLocked) "Araçlar sabitlendi" else "Araçlar serbest (Sürükle bırak)", fontSize = 12.sp)
-                    }
+                    Column { Text("Düzeni Kilitle", fontWeight = FontWeight.Bold, fontSize = 16.sp); Text(if (widgetsLocked) "Araçlar sabitlendi" else "Araçlar serbest (Sürükle bırak)", fontSize = 12.sp) }
                     Switch(checked = widgetsLocked, onCheckedChange = { widgetsLocked = it; prefs.edit().putBoolean("widgets_locked", it).apply() })
                 }
             }
         }
         item { Text("Araç Göster/Gizle", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
-        item {
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Row(modifier = Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text("Hız Göstergesi", fontWeight = FontWeight.Bold)
-                    Switch(checked = speedShow, onCheckedChange = { speedShow = it; prefs.edit().putBoolean("widget_speed", it).apply() })
-                }
-            }
-        }
-        item {
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Row(modifier = Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text("Rakım Göstergesi", fontWeight = FontWeight.Bold)
-                    Switch(checked = altShow, onCheckedChange = { altShow = it; prefs.edit().putBoolean("widget_altitude", it).apply() })
-                }
-            }
-        }
-        item {
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Row(modifier = Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text("Konum Doğruluğu", fontWeight = FontWeight.Bold)
-                    Switch(checked = accShow, onCheckedChange = { accShow = it; prefs.edit().putBoolean("widget_accuracy", it).apply() })
-                }
-            }
-        }
-        item {
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Row(modifier = Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text("GPS Kalitesi", fontWeight = FontWeight.Bold)
-                    Switch(checked = gpsShow, onCheckedChange = { gpsShow = it; prefs.edit().putBoolean("widget_gps_quality", it).apply() })
-                }
-            }
-        }
-        item {
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Row(modifier = Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text("Zoom Göstergesi", fontWeight = FontWeight.Bold)
-                    Switch(checked = zoomShow, onCheckedChange = { zoomShow = it; prefs.edit().putBoolean("widget_zoom", it).apply() })
-                }
-            }
-        }
+        item { Card(modifier = Modifier.fillMaxWidth()) { Row(modifier = Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { Text("Hız Göstergesi", fontWeight = FontWeight.Bold); Switch(checked = speedShow, onCheckedChange = { speedShow = it; prefs.edit().putBoolean("widget_speed", it).apply() }) } } }
+        item { Card(modifier = Modifier.fillMaxWidth()) { Row(modifier = Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { Text("Rakım Göstergesi", fontWeight = FontWeight.Bold); Switch(checked = altShow, onCheckedChange = { altShow = it; prefs.edit().putBoolean("widget_altitude", it).apply() }) } } }
+        item { Card(modifier = Modifier.fillMaxWidth()) { Row(modifier = Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { Text("Konum Doğruluğu", fontWeight = FontWeight.Bold); Switch(checked = accShow, onCheckedChange = { accShow = it; prefs.edit().putBoolean("widget_accuracy", it).apply() }) } } }
+        item { Card(modifier = Modifier.fillMaxWidth()) { Row(modifier = Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { Text("GPS Kalitesi", fontWeight = FontWeight.Bold); Switch(checked = gpsShow, onCheckedChange = { gpsShow = it; prefs.edit().putBoolean("widget_gps_quality", it).apply() }) } } }
+        item { Card(modifier = Modifier.fillMaxWidth()) { Row(modifier = Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { Text("Zoom Göstergesi", fontWeight = FontWeight.Bold); Switch(checked = zoomShow, onCheckedChange = { zoomShow = it; prefs.edit().putBoolean("widget_zoom", it).apply() }) } } }
     }
 }
 
@@ -997,24 +873,9 @@ fun ZoomSettingsScreen(onBack: () -> Unit) {
             }
         }
         item { Divider() }
-        item {
-            Column {
-                Text("Normal Açılış Zoom: ${String.format("%.1f", defaultZoom)}", fontWeight = FontWeight.Bold)
-                Slider(value = defaultZoom, onValueChange = { defaultZoom = it }, onValueChangeFinished = { prefs.edit().putFloat("zoom_default", defaultZoom).apply() }, valueRange = 2.0f..20.0f, steps = 18)
-            }
-        }
-        item {
-            Column {
-                Text("Konuma Git Butonu Zoom: ${String.format("%.1f", locationZoom)}", fontWeight = FontWeight.Bold)
-                Slider(value = locationZoom, onValueChange = { locationZoom = it }, onValueChangeFinished = { prefs.edit().putFloat("zoom_location", locationZoom).apply() }, valueRange = 2.0f..22.0f, steps = 20)
-            }
-        }
-        item {
-            Column {
-                Text("Kayıt Başlat Butonu Zoom: ${String.format("%.1f", trackZoom)}", fontWeight = FontWeight.Bold)
-                Slider(value = trackZoom, onValueChange = { trackZoom = it }, onValueChangeFinished = { prefs.edit().putFloat("zoom_track", trackZoom).apply() }, valueRange = 2.0f..22.0f, steps = 20)
-            }
-        }
+        item { Column { Text("Normal Açılış Zoom: ${String.format("%.1f", defaultZoom)}", fontWeight = FontWeight.Bold); Slider(value = defaultZoom, onValueChange = { defaultZoom = it }, onValueChangeFinished = { prefs.edit().putFloat("zoom_default", defaultZoom).apply() }, valueRange = 2.0f..20.0f, steps = 18) } }
+        item { Column { Text("Konuma Git Butonu Zoom: ${String.format("%.1f", locationZoom)}", fontWeight = FontWeight.Bold); Slider(value = locationZoom, onValueChange = { locationZoom = it }, onValueChangeFinished = { prefs.edit().putFloat("zoom_location", locationZoom).apply() }, valueRange = 2.0f..22.0f, steps = 20) } }
+        item { Column { Text("Kayıt Başlat Butonu Zoom: ${String.format("%.1f", trackZoom)}", fontWeight = FontWeight.Bold); Slider(value = trackZoom, onValueChange = { trackZoom = it }, onValueChangeFinished = { prefs.edit().putFloat("zoom_track", trackZoom).apply() }, valueRange = 2.0f..22.0f, steps = 20) } }
     }
 }
 
@@ -1033,20 +894,8 @@ fun MapTypeScreen(onBack: () -> Unit, onNavigateToMap: () -> Unit) {
             }
         }
         item { Divider() }
-        item {
-            ListItem(
-                headlineContent = { Text("Yol Görünümü (Standart)") },
-                trailingContent = { if (selectedType == "ROAD") Icon(Icons.Default.CheckCircle, "", tint = Color.Green) },
-                modifier = Modifier.clickable { selectedType = "ROAD"; prefs.edit().putString("map_type", "ROAD").apply(); onNavigateToMap() }
-            )
-        }
-        item {
-            ListItem(
-                headlineContent = { Text("Uydu Görünümü (Karma)") },
-                trailingContent = { if (selectedType == "HYBRID") Icon(Icons.Default.CheckCircle, "", tint = Color.Green) },
-                modifier = Modifier.clickable { selectedType = "HYBRID"; prefs.edit().putString("map_type", "HYBRID").apply(); onNavigateToMap() }
-            )
-        }
+        item { ListItem(headlineContent = { Text("Yol Görünümü (Standart)") }, trailingContent = { if (selectedType == "ROAD") Icon(Icons.Default.CheckCircle, "", tint = Color.Green) }, modifier = Modifier.clickable { selectedType = "ROAD"; prefs.edit().putString("map_type", "ROAD").apply(); onNavigateToMap() }) }
+        item { ListItem(headlineContent = { Text("Uydu Görünümü (Karma)") }, trailingContent = { if (selectedType == "HYBRID") Icon(Icons.Default.CheckCircle, "", tint = Color.Green) }, modifier = Modifier.clickable { selectedType = "HYBRID"; prefs.edit().putString("map_type", "HYBRID").apply(); onNavigateToMap() }) }
     }
 }
 
@@ -1092,16 +941,12 @@ fun PastRoutesScreen(onBack: () -> Unit, onShowRouteOnMap: (Int) -> Unit) {
                             val arr = org.json.JSONArray(prefs.getString("saved_routes", "[]"))
                             if (index < arr.length()) {
                                 val newArr = org.json.JSONArray()
-                                for (i in 0 until arr.length()) {
-                                    if (i != index) newArr.put(arr.getJSONObject(i))
-                                }
+                                for (i in 0 until arr.length()) { if (i != index) newArr.put(arr.getJSONObject(i)) }
                                 prefs.edit().putString("saved_routes", newArr.toString()).apply()
                                 routeList.removeAt(index)
                                 Toast.makeText(context, "Rota silindi", Toast.LENGTH_SHORT).show()
                             }
-                        }) {
-                            Icon(Icons.Default.Delete, contentDescription = "Sil", tint = MaterialTheme.colorScheme.error)
-                        }
+                        }) { Icon(Icons.Default.Delete, contentDescription = "Sil", tint = MaterialTheme.colorScheme.error) }
                     }
                 }
             }
@@ -1133,26 +978,9 @@ fun PermissionsDetailScreen(onBack: () -> Unit) {
         }
         item { Divider() }
         item { PermissionItem("GPS / Konum İzni", locGranted) { locLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION) } }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            item { PermissionItem("Bildirim İzni", notifGranted) { notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) } }
-        }
-        item {
-            PermissionItem("Arka Plan (Pil) İzni", batGranted) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !batGranted) {
-                    try { context.startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply { data = Uri.parse("package:${context.packageName}") }) } 
-                    catch (e: Exception) { Toast.makeText(context, "Desteklenmiyor", Toast.LENGTH_SHORT).show() }
-                }
-            }
-        }
-        item {
-            PermissionItem("Otomatik Başlatma (Xiaomi)", autoGranted) {
-                try {
-                    context.startActivity(Intent().apply { component = ComponentName("com.miui.securitycenter", "com.miui.permcenter.autostart.AutoStartManagementActivity") })
-                    prefs.edit().putBoolean("autostart_ok", true).apply()
-                    autoGranted = true
-                } catch (e: Exception) { Toast.makeText(context, "Xiaomi cihaz bulunamadı.", Toast.LENGTH_SHORT).show() }
-            }
-        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) { item { PermissionItem("Bildirim İzni", notifGranted) { notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) } } }
+        item { PermissionItem("Arka Plan (Pil) İzni", batGranted) { if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !batGranted) { try { context.startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply { data = Uri.parse("package:${context.packageName}") }) } catch (e: Exception) { Toast.makeText(context, "Desteklenmiyor", Toast.LENGTH_SHORT).show() } } } }
+        item { PermissionItem("Otomatik Başlatma (Xiaomi)", autoGranted) { try { context.startActivity(Intent().apply { component = ComponentName("com.miui.securitycenter", "com.miui.permcenter.autostart.AutoStartManagementActivity") }); prefs.edit().putBoolean("autostart_ok", true).apply(); autoGranted = true } catch (e: Exception) { Toast.makeText(context, "Xiaomi cihaz bulunamadı.", Toast.LENGTH_SHORT).show() } } }
     }
 }
 
@@ -1160,10 +988,7 @@ fun PermissionsDetailScreen(onBack: () -> Unit) {
 fun PermissionItem(title: String, isGranted: Boolean, onClick: () -> Unit) {
     ListItem(
         headlineContent = { Text(title) },
-        trailingContent = {
-            if (isGranted) Icon(Icons.Default.CheckCircle, contentDescription = "Onaylı", tint = Color.Green)
-            else Button(onClick = onClick) { Text("İzin Ver") }
-        },
+        trailingContent = { if (isGranted) Icon(Icons.Default.CheckCircle, contentDescription = "Onaylı", tint = Color.Green) else Button(onClick = onClick) { Text("İzin Ver") } },
         modifier = Modifier.clickable(enabled = !isGranted, onClick = onClick)
     )
 }
