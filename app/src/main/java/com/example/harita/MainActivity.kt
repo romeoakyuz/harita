@@ -43,13 +43,28 @@ import org.osmdroid.views.overlay.Polyline
 import org.osmdroid.views.overlay.gestures.RotationGestureOverlay
 import org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider
 import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay
+import java.io.File
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        Configuration.getInstance().userAgentValue = "KisiselRotaUygulamasi/1.0"
-        Configuration.getInstance().load(
+        // Önbellek (Cache) Ayarları - Haftalık kalıcılık ve yüksek kapasite
+        val config = Configuration.getInstance()
+        config.userAgentValue = "KisiselRotaUygulamasi/1.0"
+        
+        // Önbellek dizinini belirle
+        val cacheDir = File(applicationContext.cacheDir, "osmdroid")
+        cacheDir.mkdirs()
+        config.osmdroidBasePath = cacheDir
+        config.osmdroidTileCache = File(cacheDir, "tiles")
+        
+        // Önbellek süresini (haftada 1) ve boyutunu artır
+        config.expirationExtendedDuration = 7L * 24L * 60L * 60L * 1000L // 7 Gün
+        config.tileFileSystemCacheMaxBytes = 500L * 1024 * 1024 // 500 MB
+        config.tileFileSystemCacheTrimBytes = 400L * 1024 * 1024 // 400 MB'a inene kadar silme
+        
+        config.load(
             applicationContext,
             applicationContext.getSharedPreferences("osmdroid_prefs", Context.MODE_PRIVATE)
         )
@@ -142,11 +157,16 @@ fun MapScreen() {
         }
     }
 
-    // Yol Görünümü (lyrs=r: Yerleşim yerleri ve Yollar + Ölçekleme)
+    // Orijinal Google Yol Görünümü (lyrs=m) + Okunabilirlik için scale=2
     val googleRoads = remember {
         object : OnlineTileSourceBase(
             "GoogleRoads", 0, 22, 256, "", 
-            arrayOf("https://mt0.google.com/vt/lyrs=m,h&hl=tr&scale=2&", "https://mt1.google.com/vt/lyrs=m,h&hl=tr&scale=2&", "https://mt2.google.com/vt/lyrs=m,h&hl=tr&scale=2&", "https://mt3.google.com/vt/lyrs=m,h&hl=tr&scale=2&")
+            arrayOf(
+                "https://mt0.google.com/vt/lyrs=m&hl=tr&scale=2&", 
+                "https://mt1.google.com/vt/lyrs=m&hl=tr&scale=2&", 
+                "https://mt2.google.com/vt/lyrs=m&hl=tr&scale=2&", 
+                "https://mt3.google.com/vt/lyrs=m&hl=tr&scale=2&"
+            )
         ) {
             override fun getTileURLString(pMapTileIndex: Long): String {
                 val zoom = MapTileIndex.getZoom(pMapTileIndex)
@@ -157,11 +177,16 @@ fun MapScreen() {
         }
     }
 
-    // Uydu Hibrit Görünümü (lyrs=y,h: Uydu, Yollar ve Şehir/Köy İsimleri + Ölçekleme)
+    // Uydu Hibrit Görünümü (lyrs=y,h)
     val googleHybrid = remember {
         object : OnlineTileSourceBase(
             "GoogleHybrid", 0, 22, 256, "", 
-            arrayOf("https://mt0.google.com/vt/lyrs=y,h&hl=tr&scale=2&", "https://mt1.google.com/vt/lyrs=y,h&hl=tr&scale=2&", "https://mt2.google.com/vt/lyrs=y,h&hl=tr&scale=2&", "https://mt3.google.com/vt/lyrs=y,h&hl=tr&scale=2&")
+            arrayOf(
+                "https://mt0.google.com/vt/lyrs=y,h&hl=tr&scale=2&", 
+                "https://mt1.google.com/vt/lyrs=y,h&hl=tr&scale=2&", 
+                "https://mt2.google.com/vt/lyrs=y,h&hl=tr&scale=2&", 
+                "https://mt3.google.com/vt/lyrs=y,h&hl=tr&scale=2&"
+            )
         ) {
             override fun getTileURLString(pMapTileIndex: Long): String {
                 val zoom = MapTileIndex.getZoom(pMapTileIndex)
