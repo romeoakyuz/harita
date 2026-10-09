@@ -18,9 +18,11 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
@@ -29,10 +31,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.navigation.compose.*
+import kotlinx.coroutines.delay
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.OnlineTileSourceBase
 import org.osmdroid.util.GeoPoint
@@ -83,9 +87,21 @@ fun createSmallMarkerIcon(context: Context, resId: Int, color: Int): android.gra
     return android.graphics.drawable.BitmapDrawable(context.resources, bitmap)
 }
 
+fun formatTime(seconds: Long): String {
+    val h = seconds / 3600
+    val m = (seconds % 3600) / 60
+    val s = seconds % 60
+    return if (h > 0) String.format("%02d:%02d:%02d", h, m, s) else String.format("%02d:%02d", m, s)
+}
+
+fun formatDistance(meters: Float): String {
+    return if (meters >= 1000) String.format("%.2f km", meters / 1000f) else "${meters.toInt()} m"
+}
+
 @Composable
 fun RouteTrackerApp() {
     val navController = rememberNavController()
+    var selectedPastRouteIndex by remember { mutableStateOf(-1) }
     
     Scaffold(
         bottomBar = {
@@ -111,14 +127,23 @@ fun RouteTrackerApp() {
             startDestination = "map",
             modifier = Modifier.padding(innerPadding)
         ) {
-            composable("map") { MapScreen() }
-            composable("settings") { SettingsScreen() }
+            composable("map") { 
+                MapScreen(selectedPastRouteIndex) { selectedPastRouteIndex = -1 }
+            }
+            composable("settings") { 
+                SettingsScreen(
+                    onShowRouteOnMap = { index ->
+                        selectedPastRouteIndex = index
+                        navController.navigate("map") { popUpTo(0) }
+                    }
+                ) 
+            }
         }
     }
 }
 
 @Composable
-fun MapScreen() {
+fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
     val context = LocalContext.current
     var isTracking by remember { mutableStateOf(false) }
     var mapType by remember { mutableStateOf("ROAD") }
@@ -126,6 +151,11 @@ fun MapScreen() {
     var mapViewInstance by remember { mutableStateOf<MapView?>(null) }
     var myLocationOverlay by remember { mutableStateOf<MyLocationNewOverlay?>(null) }
     var routePolyline by remember { mutableStateOf<Polyline?>(null) }
+
+    // Takip Verileri
+    var elapsedSeconds by remember { mutableStateOf(0L) }
+    var totalDistance by remember { mutableStateOf(0f) }
+    var lastLoc by remember { mutableStateOf<android.location.Location?>(null) }
 
     val locationManager = remember { context.getSystemService(Context.LOCATION_SERVICE) as android.location.LocationManager }
     
@@ -135,6 +165,12 @@ fun MapScreen() {
                 if (isTracking) {
                     val geo = GeoPoint(location.latitude, location.longitude)
                     routePolyline?.addPoint(geo)
+                    
+                    lastLoc?.let {
+                        totalDistance += it.distanceTo(location)
+                    }
+                    lastLoc = location
+
                     mapViewInstance?.controller?.animateTo(geo)
                     if (location.hasBearing()) {
                         mapViewInstance?.setMapOrientation(-location.bearing)
@@ -148,17 +184,52 @@ fun MapScreen() {
         }
     }
 
+    LaunchedEffect(isTracking) {
+        if (isTracking) {
+            while (true) {
+                delay(1000L)
+                elapsedSeconds++
+            }
+        }
+    }
+
     DisposableEffect(Unit) {
         onDispose {
             locationManager.removeUpdates(locationListener)
         }
     }
 
+    // Geçmiş rotayı haritada gösterme
+    LaunchedEffect(pastRouteIndex) {
+        if (pastRouteIndex >= 0) {
+            val prefs = context.getSharedPreferences("harita_prefs", Context.MODE_PRIVATE)
+            val jsonStr = prefs.getString("saved_routes", "[]")
+            val arr = org.json.JSONArray(jsonStr)
+            if (pastRouteIndex < arr.length()) {
+                val routeObj = arr.getJSONObject(pastRouteIndex)
+                val pts = routeObj.getJSONArray("points")
+                val polyline = Polyline().apply {
+                    outlinePaint.color = android.graphics.Color.BLUE
+                    outlinePaint.strokeWidth = 14f
+                }
+                for (i in 0 until pts.length()) {
+                    val pt = pts.getJSONObject(i)
+                    polyline.addPoint(GeoPoint(pt.getDouble("lat"), pt.getDouble("lon")))
+                }
+                mapViewInstance?.overlays?.removeAll { it is Polyline || it is Marker }
+                mapViewInstance?.overlays?.add(polyline)
+                mapViewInstance?.invalidate()
+                
+                if (polyline.actualPoints.isNotEmpty()) {
+                    mapViewInstance?.controller?.animateTo(polyline.actualPoints.first())
+                    mapViewInstance?.controller?.setZoom(16.0)
+                }
+            }
+        }
+    }
+
     val googleRoads = remember {
-        object : OnlineTileSourceBase(
-            "GoogleRoads", 0, 22, 256, "", 
-            arrayOf("https://mt0.google.com/vt/lyrs=m&hl=tr&scale=2&", "https://mt1.google.com/vt/lyrs=m&hl=tr&scale=2&", "https://mt2.google.com/vt/lyrs=m&hl=tr&scale=2&", "https://mt3.google.com/vt/lyrs=m&hl=tr&scale=2&")
-        ) {
+        object : OnlineTileSourceBase("GoogleRoads", 0, 22, 256, "", arrayOf("https://mt0.google.com/vt/lyrs=m&hl=tr&scale=2&", "https://mt1.google.com/vt/lyrs=m&hl=tr&scale=2&", "https://mt2.google.com/vt/lyrs=m&hl=tr&scale=2&", "https://mt3.google.com/vt/lyrs=m&hl=tr&scale=2&")) {
             override fun getTileURLString(pMapTileIndex: Long): String {
                 val zoom = MapTileIndex.getZoom(pMapTileIndex)
                 val y = MapTileIndex.getY(pMapTileIndex)
@@ -169,10 +240,7 @@ fun MapScreen() {
     }
 
     val googleHybrid = remember {
-        object : OnlineTileSourceBase(
-            "GoogleHybrid", 0, 22, 256, "", 
-            arrayOf("https://mt0.google.com/vt/lyrs=y,h&hl=tr&scale=2&", "https://mt1.google.com/vt/lyrs=y,h&hl=tr&scale=2&", "https://mt2.google.com/vt/lyrs=y,h&hl=tr&scale=2&", "https://mt3.google.com/vt/lyrs=y,h&hl=tr&scale=2&")
-        ) {
+        object : OnlineTileSourceBase("GoogleHybrid", 0, 22, 256, "", arrayOf("https://mt0.google.com/vt/lyrs=y,h&hl=tr&scale=2&", "https://mt1.google.com/vt/lyrs=y,h&hl=tr&scale=2&", "https://mt2.google.com/vt/lyrs=y,h&hl=tr&scale=2&", "https://mt3.google.com/vt/lyrs=y,h&hl=tr&scale=2&")) {
             override fun getTileURLString(pMapTileIndex: Long): String {
                 val zoom = MapTileIndex.getZoom(pMapTileIndex)
                 val y = MapTileIndex.getY(pMapTileIndex)
@@ -189,19 +257,13 @@ fun MapScreen() {
                     setTileSource(if (mapType == "ROAD") googleRoads else googleHybrid)
                     setMultiTouchControls(true)
                     setBuiltInZoomControls(false)
-                    
-                    // Harita piksellerini cihaz çözünürlüğüne (DPI) göre ve manuel olarak büyüt
-                    // Bu sayede köy isimleri ve yazılar çok daha büyük ve belirgin olacak!
                     setTilesScaledToDpi(true)
                     tilesScaleFactor = 1.5f 
-                    
                     setMinZoomLevel(4.0)
                     setMaxZoomLevel(22.0)
                     controller.setZoom(9.0)
                     
-                    val rotationGestureOverlay = RotationGestureOverlay(this).apply {
-                        isEnabled = true
-                    }
+                    val rotationGestureOverlay = RotationGestureOverlay(this).apply { isEnabled = true }
                     overlays.add(rotationGestureOverlay)
                     
                     val provider = GpsMyLocationProvider(ctx)
@@ -210,9 +272,11 @@ fun MapScreen() {
                     
                     overlay.runOnFirstFix {
                         post {
-                            overlay.myLocation?.let {
-                                controller.animateTo(it)
-                                controller.setZoom(14.0)
+                            if (pastRouteIndex < 0) {
+                                overlay.myLocation?.let {
+                                    controller.animateTo(it)
+                                    controller.setZoom(14.0)
+                                }
                             }
                         }
                     }
@@ -232,16 +296,44 @@ fun MapScreen() {
             modifier = Modifier.fillMaxSize()
         )
 
+        // Uydu / Yol Seçimi Butonu
         Button(
             onClick = { mapType = if (mapType == "ROAD") "HYBRID" else "ROAD" },
             modifier = Modifier.align(Alignment.TopEnd).padding(top = 16.dp, end = 16.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-            ),
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurfaceVariant),
             elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp)
         ) {
             Text(if (mapType == "ROAD") "Uydu Görünümü" else "Yol Görünümü")
+        }
+
+        // Geçmiş Rota Temizle Butonu
+        if (pastRouteIndex >= 0) {
+            Button(
+                onClick = { 
+                    onClearPastRoute()
+                    mapViewInstance?.overlays?.removeAll { it is Polyline || (it is Marker && it.title != "Start" && it.title != "Stop") }
+                    mapViewInstance?.invalidate()
+                },
+                modifier = Modifier.align(Alignment.TopStart).padding(top = 16.dp, start = 16.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+            ) {
+                Text("Haritayı Temizle")
+            }
+        }
+
+        // Canlı Takip Bilgi Paneli (Süre ve Mesafe)
+        if (isTracking) {
+            Card(
+                modifier = Modifier.align(Alignment.TopCenter).padding(top = 70.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                shape = RoundedCornerShape(16.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+            ) {
+                Row(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Text("Süre: ${formatTime(elapsedSeconds)}", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                    Text("Mesafe: ${formatDistance(totalDistance)}", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                }
+            }
         }
 
         FloatingActionButton(
@@ -279,12 +371,22 @@ fun MapScreen() {
                         return@Button
                     }
 
+                    onClearPastRoute() // Yeni kayıt başlarken eski gösterimi kapat
+                    
                     isTracking = true
+                    elapsedSeconds = 0L
+                    totalDistance = 0f
+                    lastLoc = null
+
+                    try {
+                        lastLoc = locationManager.getLastKnownLocation(android.location.LocationManager.GPS_PROVIDER)
+                    } catch (e: SecurityException) { }
+
                     mapViewInstance?.overlays?.removeAll { it is Marker || it is Polyline }
 
                     val polyline = Polyline().apply {
                         outlinePaint.color = android.graphics.Color.RED
-                        outlinePaint.strokeWidth = 12f
+                        outlinePaint.strokeWidth = 14f
                         addPoint(startLoc)
                     }
                     mapViewInstance?.overlays?.add(polyline)
@@ -371,35 +473,30 @@ fun MapScreen() {
 }
 
 @Composable
-fun SettingsScreen() {
+fun SettingsScreen(onShowRouteOnMap: (Int) -> Unit) {
     var currentSubScreen by remember { mutableStateOf("main") }
 
     when (currentSubScreen) {
         "main" -> {
-            Column(
-                modifier = Modifier.fillMaxSize().padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
+            Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Ayarlar", style = MaterialTheme.typography.headlineMedium)
                 Divider()
                 ListItem(headlineContent = { Text("İzinler") }, supportingContent = { Text("GPS, Pil ve Otomatik Başlatma detayları") }, modifier = Modifier.clickable { currentSubScreen = "permissions" })
                 Divider()
-                ListItem(headlineContent = { Text("Yer İşaretleri") }, modifier = Modifier.clickable { })
-                ListItem(headlineContent = { Text("Geçmiş Rotalar") }, supportingContent = { Text("Kaydedilen rotaları görüntüle") }, modifier = Modifier.clickable { currentSubScreen = "past_routes" })
-                Divider()
-                ListItem(headlineContent = { Text("Rota Ayarları") }, modifier = Modifier.clickable { })
+                ListItem(headlineContent = { Text("Geçmiş Rotalar") }, supportingContent = { Text("Kaydedilen rotaları görüntüle, sil veya haritada aç") }, modifier = Modifier.clickable { currentSubScreen = "past_routes" })
             }
         }
         "permissions" -> { PermissionsDetailScreen(onBack = { currentSubScreen = "main" }) }
-        "past_routes" -> { PastRoutesScreen(onBack = { currentSubScreen = "main" }) }
+        "past_routes" -> { PastRoutesScreen(onBack = { currentSubScreen = "main" }, onShowRouteOnMap = onShowRouteOnMap) }
     }
 }
 
 @Composable
-fun PastRoutesScreen(onBack: () -> Unit) {
+fun PastRoutesScreen(onBack: () -> Unit, onShowRouteOnMap: (Int) -> Unit) {
     val context = LocalContext.current
     val prefs = context.getSharedPreferences("harita_prefs", Context.MODE_PRIVATE)
     val jsonStr = prefs.getString("saved_routes", "[]")
+    
     val routeList = remember {
         mutableStateListOf<Pair<String, Int>>().apply {
             try {
@@ -424,12 +521,28 @@ fun PastRoutesScreen(onBack: () -> Unit) {
         if (routeList.isEmpty()) {
             item { Text("Henüz kaydedilmiş rota bulunmuyor.", color = Color.Gray) }
         } else {
-            items(routeList) { route ->
-                Card(modifier = Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(route.first, style = MaterialTheme.typography.titleMedium)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text("GPS Nokta Sayısı: ${route.second}", style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
+            itemsIndexed(routeList) { index, route ->
+                Card(modifier = Modifier.fillMaxWidth().clickable { onShowRouteOnMap(index) }, elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(route.first, style = MaterialTheme.typography.titleMedium)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text("GPS Nokta Sayısı: ${route.second}", style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
+                        }
+                        IconButton(onClick = {
+                            val arr = org.json.JSONArray(prefs.getString("saved_routes", "[]"))
+                            if (index < arr.length()) {
+                                val newArr = org.json.JSONArray()
+                                for (i in 0 until arr.length()) {
+                                    if (i != index) newArr.put(arr.getJSONObject(i))
+                                }
+                                prefs.edit().putString("saved_routes", newArr.toString()).apply()
+                                routeList.removeAt(index)
+                                Toast.makeText(context, "Rota silindi", Toast.LENGTH_SHORT).show()
+                            }
+                        }) {
+                            Icon(Icons.Default.Delete, contentDescription = "Sil", tint = MaterialTheme.colorScheme.error)
+                        }
                     }
                 }
             }
@@ -460,46 +573,25 @@ fun PermissionsDetailScreen(onBack: () -> Unit) {
             }
         }
         item { Divider() }
-        item {
-            PermissionItem("GPS / Konum İzni", locGranted) {
-                locLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
-            }
-        }
+        item { PermissionItem("GPS / Konum İzni", locGranted) { locLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION) } }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            item {
-                PermissionItem("Bildirim İzni", notifGranted) {
-                    notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                }
-            }
+            item { PermissionItem("Bildirim İzni", notifGranted) { notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) } }
         }
         item {
             PermissionItem("Arka Plan (Pil) İzni", batGranted) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !batGranted) {
-                    try {
-                        val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                            data = Uri.parse("package:${context.packageName}")
-                        }
-                        context.startActivity(intent)
-                    } catch (e: Exception) {
-                        Toast.makeText(context, "Desteklenmiyor", Toast.LENGTH_SHORT).show()
-                    }
+                    try { context.startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply { data = Uri.parse("package:${context.packageName}") }) } 
+                    catch (e: Exception) { Toast.makeText(context, "Desteklenmiyor", Toast.LENGTH_SHORT).show() }
                 }
             }
         }
         item {
             PermissionItem("Otomatik Başlatma (Xiaomi)", autoGranted) {
                 try {
-                    val intent = Intent().apply {
-                        component = ComponentName("com.miui.securitycenter", "com.miui.permcenter.autostart.AutoStartManagementActivity")
-                    }
-                    context.startActivity(intent)
+                    context.startActivity(Intent().apply { component = ComponentName("com.miui.securitycenter", "com.miui.permcenter.autostart.AutoStartManagementActivity") })
                     prefs.edit().putBoolean("autostart_ok", true).apply()
                     autoGranted = true
-                } catch (e: Exception) {
-                    Toast.makeText(context, "Xiaomi cihaz bulunamadı.", Toast.LENGTH_SHORT).show()
-                    prefs.edit().putBoolean("autostart_ok", true).apply()
-                    autoGranted = true
-                }
+                } catch (e: Exception) { Toast.makeText(context, "Xiaomi cihaz bulunamadı.", Toast.LENGTH_SHORT).show() }
             }
         }
     }
@@ -510,13 +602,8 @@ fun PermissionItem(title: String, isGranted: Boolean, onClick: () -> Unit) {
     ListItem(
         headlineContent = { Text(title) },
         trailingContent = {
-            if (isGranted) {
-                Icon(Icons.Default.CheckCircle, contentDescription = "Onaylı", tint = Color.Green)
-            } else {
-                Button(onClick = onClick) {
-                    Text("İzin Ver")
-                }
-            }
+            if (isGranted) Icon(Icons.Default.CheckCircle, contentDescription = "Onaylı", tint = Color.Green)
+            else Button(onClick = onClick) { Text("İzin Ver") }
         },
         modifier = Modifier.clickable(enabled = !isGranted, onClick = onClick)
     )
