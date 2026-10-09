@@ -18,9 +18,8 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
+import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -140,7 +139,11 @@ fun RouteTrackerApp() {
         NavHost(
             navController = navController,
             startDestination = "map",
-            modifier = Modifier.padding(innerPadding)
+            modifier = Modifier.padding(innerPadding),
+            enterTransition = { fadeIn(animationSpec = tween(300)) },
+            exitTransition = { fadeOut(animationSpec = tween(300)) },
+            popEnterTransition = { fadeIn(animationSpec = tween(300)) },
+            popExitTransition = { fadeOut(animationSpec = tween(300)) }
         ) {
             composable("map") { 
                 MapScreen(selectedPastRouteIndex) { selectedPastRouteIndex = -1 }
@@ -332,7 +335,6 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
         }
     }
 
-    // Kilit ve Konum/Offset Değerleri
     val widgetsLocked = mapPrefs.getBoolean("widgets_locked", false)
 
     val showSpeed = mapPrefs.getBoolean("widget_speed", true)
@@ -358,8 +360,8 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
     Box(modifier = Modifier.fillMaxSize()) {
         AnimatedVisibility(
             visible = isMapVisible,
-            enter = fadeIn(animationSpec = androidx.compose.animation.core.tween(300)),
-            exit = fadeOut(animationSpec = androidx.compose.animation.core.tween(300)),
+            enter = fadeIn(animationSpec = tween(300)),
+            exit = fadeOut(animationSpec = tween(300)),
             modifier = Modifier.fillMaxSize()
         ) {
             AndroidView(
@@ -425,7 +427,7 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
             )
         }
 
-        // Hız Göstergesi Widget (Sürükle Bırak Özellikli)
+        // Hız Göstergesi Widget
         if (showSpeed) {
             Box(
                 modifier = Modifier
@@ -482,7 +484,7 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
             }
         }
 
-        // Rakım Widget (Sürükle Bırak)
+        // Rakım Widget
         if (showAltitude) {
             Box(
                 modifier = Modifier
@@ -512,7 +514,7 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
             }
         }
 
-        // Konum Doğruluğu Widget (Sürükle Bırak)
+        // Konum Doğruluğu Widget
         if (showAccuracy) {
             Box(
                 modifier = Modifier
@@ -542,7 +544,7 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
             }
         }
 
-        // GPS Kalitesi Widget (Sürükle Bırak)
+        // GPS Kalitesi Widget
         if (showGpsQuality) {
             Box(
                 modifier = Modifier
@@ -572,7 +574,7 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
             }
         }
 
-        // Zoom Widget (Sürükle Bırak)
+        // Zoom Widget
         if (showZoom) {
             Box(
                 modifier = Modifier
@@ -616,7 +618,6 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
             }
         }
 
-        // Konumuma Git Butonu (Kesin Ortamlama ve Anında Tepki)
         FloatingActionButton(
             onClick = { 
                 myLocationOverlay?.enableMyLocation()
@@ -812,7 +813,6 @@ fun WidgetsSettingsScreen(onBack: () -> Unit) {
         }
         item { Divider() }
 
-        // Düzeni Kilitle / Aç Kartı
         item {
             Card(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
