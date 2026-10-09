@@ -109,6 +109,7 @@ fun RouteTrackerApp() {
 fun MapScreen() {
     val context = LocalContext.current
     var isTracking by remember { mutableStateOf(false) }
+    var mapType by remember { mutableStateOf("ROAD") } // "ROAD" veya "HYBRID"
     
     var mapViewInstance by remember { mutableStateOf<MapView?>(null) }
     var myLocationOverlay by remember { mutableStateOf<MyLocationNewOverlay?>(null) }
@@ -141,29 +142,41 @@ fun MapScreen() {
         }
     }
 
+    // Google Haritalar - Standart Yol Katmanı
+    val googleRoads = remember {
+        object : OnlineTileSourceBase(
+            "GoogleRoads", 0, 19, 256, "", 
+            arrayOf("https://mt0.google.com/vt/lyrs=m&hl=tr&", "https://mt1.google.com/vt/lyrs=m&hl=tr&", "https://mt2.google.com/vt/lyrs=m&hl=tr&", "https://mt3.google.com/vt/lyrs=m&hl=tr&")
+        ) {
+            override fun getTileURLString(pMapTileIndex: Long): String {
+                val zoom = MapTileIndex.getZoom(pMapTileIndex)
+                val y = MapTileIndex.getY(pMapTileIndex)
+                val x = MapTileIndex.getX(pMapTileIndex)
+                return baseUrl + "x=$x&y=$y&z=$zoom"
+            }
+        }
+    }
+
+    // Google Haritalar - Karma Uydu Katmanı (Uydu + Sokak İsimleri)
+    val googleHybrid = remember {
+        object : OnlineTileSourceBase(
+            "GoogleHybrid", 0, 19, 256, "", 
+            arrayOf("https://mt0.google.com/vt/lyrs=y&hl=tr&", "https://mt1.google.com/vt/lyrs=y&hl=tr&", "https://mt2.google.com/vt/lyrs=y&hl=tr&", "https://mt3.google.com/vt/lyrs=y&hl=tr&")
+        ) {
+            override fun getTileURLString(pMapTileIndex: Long): String {
+                val zoom = MapTileIndex.getZoom(pMapTileIndex)
+                val y = MapTileIndex.getY(pMapTileIndex)
+                val x = MapTileIndex.getX(pMapTileIndex)
+                return baseUrl + "x=$x&y=$y&z=$zoom"
+            }
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         AndroidView(
             factory = { ctx ->
                 MapView(ctx).apply {
-                    // API Anahtarı Olmadan Google Haritalar (Standart Yol Görünümü) Bağlantısı
-                    val googleMapSource = object : OnlineTileSourceBase(
-                        "GoogleMapsRoads", 0, 19, 256, "", 
-                        arrayOf(
-                            "https://mt0.google.com/vt/lyrs=m&hl=tr&",
-                            "https://mt1.google.com/vt/lyrs=m&hl=tr&",
-                            "https://mt2.google.com/vt/lyrs=m&hl=tr&",
-                            "https://mt3.google.com/vt/lyrs=m&hl=tr&"
-                        )
-                    ) {
-                        override fun getTileURLString(pMapTileIndex: Long): String {
-                            val zoom = MapTileIndex.getZoom(pMapTileIndex)
-                            val y = MapTileIndex.getY(pMapTileIndex)
-                            val x = MapTileIndex.getX(pMapTileIndex)
-                            return baseUrl + "x=$x&y=$y&z=$zoom"
-                        }
-                    }
-                    
-                    setTileSource(googleMapSource)
+                    setTileSource(if (mapType == "ROAD") googleRoads else googleHybrid)
                     setMultiTouchControls(true)
                     setBuiltInZoomControls(false)
                     
@@ -194,8 +207,28 @@ fun MapScreen() {
                     mapViewInstance = this
                 }
             },
+            update = { view ->
+                val targetSource = if (mapType == "ROAD") googleRoads else googleHybrid
+                if (view.tileProvider.tileSource != targetSource) {
+                    view.setTileSource(targetSource)
+                    view.invalidate()
+                }
+            },
             modifier = Modifier.fillMaxSize()
         )
+
+        // Uydu/Yol Görünümü Değiştirme Butonu
+        Button(
+            onClick = { mapType = if (mapType == "ROAD") "HYBRID" else "ROAD" },
+            modifier = Modifier.align(Alignment.TopEnd).padding(top = 16.dp, end = 16.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+            ),
+            elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp)
+        ) {
+            Text(if (mapType == "ROAD") "Uydu Görünümü" else "Yol Görünümü")
+        }
 
         FloatingActionButton(
             onClick = { 
@@ -330,36 +363,21 @@ fun SettingsScreen() {
     when (currentSubScreen) {
         "main" -> {
             Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp),
+                modifier = Modifier.fillMaxSize().padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text("Ayarlar", style = MaterialTheme.typography.headlineMedium)
                 Divider()
-                
-                ListItem(
-                    headlineContent = { Text("İzinler") },
-                    supportingContent = { Text("GPS, Pil ve Otomatik Başlatma detayları") },
-                    modifier = Modifier.clickable { currentSubScreen = "permissions" }
-                )
+                ListItem(headlineContent = { Text("İzinler") }, supportingContent = { Text("GPS, Pil ve Otomatik Başlatma detayları") }, modifier = Modifier.clickable { currentSubScreen = "permissions" })
                 Divider()
                 ListItem(headlineContent = { Text("Yer İşaretleri") }, modifier = Modifier.clickable { })
-                ListItem(
-                    headlineContent = { Text("Geçmiş Rotalar") },
-                    supportingContent = { Text("Kaydedilen rotaları görüntüle") },
-                    modifier = Modifier.clickable { currentSubScreen = "past_routes" }
-                )
+                ListItem(headlineContent = { Text("Geçmiş Rotalar") }, supportingContent = { Text("Kaydedilen rotaları görüntüle") }, modifier = Modifier.clickable { currentSubScreen = "past_routes" })
                 Divider()
                 ListItem(headlineContent = { Text("Rota Ayarları") }, modifier = Modifier.clickable { })
             }
         }
-        "permissions" -> {
-            PermissionsDetailScreen(onBack = { currentSubScreen = "main" })
-        }
-        "past_routes" -> {
-            PastRoutesScreen(onBack = { currentSubScreen = "main" })
-        }
+        "permissions" -> { PermissionsDetailScreen(onBack = { currentSubScreen = "main" }) }
+        "past_routes" -> { PastRoutesScreen(onBack = { currentSubScreen = "main" }) }
     }
 }
 
@@ -368,54 +386,32 @@ fun PastRoutesScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val prefs = context.getSharedPreferences("harita_prefs", Context.MODE_PRIVATE)
     val jsonStr = prefs.getString("saved_routes", "[]")
-    
     val routeList = remember {
         mutableStateListOf<Pair<String, Int>>().apply {
             try {
                 val arr = org.json.JSONArray(jsonStr)
                 for (i in 0 until arr.length()) {
                     val obj = arr.getJSONObject(i)
-                    val title = obj.getString("title")
-                    val pointsCount = obj.getJSONArray("points").length()
-                    add(Pair(title, pointsCount))
+                    add(Pair(obj.getString("title"), obj.getJSONArray("points").length()))
                 }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
+            } catch (e: Exception) { e.printStackTrace() }
         }
     }
 
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
+    LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .clickable(onClick = onBack)
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp)
-            ) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable(onClick = onBack).fillMaxWidth().padding(vertical = 4.dp)) {
                 Text("< Geri", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
                 Spacer(modifier = Modifier.width(16.dp))
                 Text("Geçmiş Rotalar", style = MaterialTheme.typography.headlineMedium)
             }
         }
         item { Divider() }
-
         if (routeList.isEmpty()) {
-            item {
-                Text("Henüz kaydedilmiş rota bulunmuyor.", color = Color.Gray)
-            }
+            item { Text("Henüz kaydedilmiş rota bulunmuyor.", color = Color.Gray) }
         } else {
             items(routeList) { route ->
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                ) {
+                Card(modifier = Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(route.first, style = MaterialTheme.typography.titleMedium)
                         Spacer(modifier = Modifier.height(4.dp))
@@ -432,97 +428,27 @@ fun PermissionsDetailScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
     val prefs = context.getSharedPreferences("harita_prefs", Context.MODE_PRIVATE)
-
     var locGranted by remember { mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) }
-    var notifGranted by remember { mutableStateOf(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED else true) }
-    var batGranted by remember { mutableStateOf(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) powerManager.isIgnoringBatteryOptimizations(context.packageName) else true) }
-    var autoGranted by remember { mutableStateOf(prefs.getBoolean("autostart_ok", false)) }
-
     val locLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { locGranted = it }
-    val notifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { notifGranted = it }
 
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
+    LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .clickable(onClick = onBack)
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp)
-            ) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable(onClick = onBack).fillMaxWidth().padding(vertical = 4.dp)) {
                 Text("< Geri", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
                 Spacer(modifier = Modifier.width(16.dp))
                 Text("İzinler Detayı", style = MaterialTheme.typography.headlineMedium)
             }
         }
         item { Divider() }
-        
         item {
-            PermissionItem("GPS / Konum İzni", locGranted) {
-                locLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
-            }
-        }
-        
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            item {
-                PermissionItem("Bildirim İzni", notifGranted) {
-                    notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                }
-            }
-        }
-        
-        item {
-            PermissionItem("Arka Plan (Pil) İzni", batGranted) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !batGranted) {
-                    try {
-                        val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                            data = Uri.parse("package:${context.packageName}")
-                        }
-                        context.startActivity(intent)
-                    } catch (e: Exception) {
-                        Toast.makeText(context, "Desteklenmiyor", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            }
-        }
-        
-        item {
-            PermissionItem("Otomatik Başlatma (Xiaomi)", autoGranted) {
-                try {
-                    val intent = Intent().apply {
-                        component = ComponentName("com.miui.securitycenter", "com.miui.permcenter.autostart.AutoStartManagementActivity")
-                    }
-                    context.startActivity(intent)
-                    prefs.edit().putBoolean("autostart_ok", true).apply()
-                    autoGranted = true
-                } catch (e: Exception) {
-                    Toast.makeText(context, "Xiaomi cihaz bulunamadı.", Toast.LENGTH_SHORT).show()
-                    prefs.edit().putBoolean("autostart_ok", true).apply()
-                    autoGranted = true
-                }
-            }
+            ListItem(
+                headlineContent = { Text("GPS / Konum İzni") },
+                trailingContent = {
+                    if (locGranted) Icon(Icons.Default.CheckCircle, contentDescription = "Onaylı", tint = Color.Green)
+                    else Button(onClick = { locLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION) }) { Text("İzin Ver") }
+                },
+                modifier = Modifier.clickable(enabled = !locGranted) { locLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION) }
+            )
         }
     }
-}
-
-@Composable
-fun PermissionItem(title: String, isGranted: Boolean, onClick: () -> Unit) {
-    ListItem(
-        headlineContent = { Text(title) },
-        trailingContent = {
-            if (isGranted) {
-                Icon(Icons.Default.CheckCircle, contentDescription = "Onaylı", tint = Color.Green)
-            } else {
-                Button(onClick = onClick) {
-                    Text("İzin Ver")
-                }
-            }
-        },
-        modifier = Modifier.clickable(enabled = !isGranted, onClick = onClick)
-    )
 }
