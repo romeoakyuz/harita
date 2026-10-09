@@ -180,11 +180,10 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
 
     val locationManager = remember { context.getSystemService(Context.LOCATION_SERVICE) as LocationManager }
     
-    // Hem GPS hem Şebeke (Network) destekli en güncel konumu güvenle bulan fonksiyon
     fun getBestCurrentLocation(): GeoPoint? {
         try {
             val hasFine = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
-            val hasCoarse = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COASE_LOCATION) == PackageManager.PERMISSION_GRANTED
+            val hasCoarse = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
             if (!hasFine && !hasCoarse) return null
 
             val gpsLoc = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
@@ -200,7 +199,6 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
             }
         } catch (e: Exception) { e.printStackTrace() }
 
-        // Eğer sistemde kayıtlı son konum yoksa veya overlay yakaladıysa
         myLocationOverlay?.myLocation?.let { return it }
         return null
     }
@@ -340,9 +338,7 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                         val rotationGestureOverlay = RotationGestureOverlay(this).apply { isEnabled = true }
                         overlays.add(rotationGestureOverlay)
                         
-                        // Hibrit sağlayıcı (Hem GPS hem Şebeke destekli)
                         val provider = GpsMyLocationProvider(ctx).apply {
-                            // Şebeke sağlayıcısını da etkinleştir
                             try {
                                 addLocationSource(LocationManager.NETWORK_PROVIDER)
                             } catch (e: Exception) {}
@@ -378,7 +374,6 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
             )
         }
 
-        // Sol Üst: Yuvarlak Hız Göstergesi ve Temizle Butonu
         Column(
             modifier = Modifier.align(Alignment.TopStart).padding(top = 16.dp, start = 16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -419,7 +414,6 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
             }
         }
 
-        // Sağ Üst: Yalnızca Canlı Rakım Göstergesi
         Card(
             modifier = Modifier.align(Alignment.TopEnd).padding(top = 16.dp, end = 16.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f)),
@@ -445,7 +439,6 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
             }
         }
 
-        // Konumuma Git Butonu (GPS + Şebeke Hibrit Güvenceli İlk Tıkta Ortalama)
         FloatingActionButton(
             onClick = { 
                 myLocationOverlay?.enableMyLocation()
@@ -473,7 +466,6 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
             Icon(Icons.Default.LocationOn, contentDescription = "Konumuma Git")
         }
 
-        // Tek Buton (Başlat / Bitir)
         Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
