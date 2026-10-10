@@ -362,10 +362,16 @@ fun MapScreen(pastRouteIndex: Int, resetMapTrigger: Int, onClearPastRoute: () ->
                         return 
                     }
 
+                    val minAllowedDist = mapPrefs.getFloat("min_distance_filter", 3.0f)
+                    val distToLast = if (lastLoc != null) lastLoc!!.distanceTo(location) else 0f
+                    if (minAllowedDist > 0f && lastLoc != null && distToLast < minAllowedDist) {
+                        return
+                    }
+
                     val geo = GeoPoint(location.latitude, location.longitude)
 
                     if (lastLoc != null) {
-                        totalDistance += lastLoc!!.distanceTo(location)
+                        totalDistance += distToLast
                     }
 
                     routePolyline?.addPoint(geo)
@@ -782,7 +788,7 @@ fun SettingsScreen(onShowRouteOnMap: (Int) -> Unit, onNavigateToMap: () -> Unit)
                 Divider()
                 ListItem(headlineContent = { Text("Konum Servisleri") }, supportingContent = { Text("GPS ve Şebeke sağlayıcı ayarları") }, modifier = Modifier.clickable { currentSubScreen = "location_services" })
                 Divider()
-                ListItem(headlineContent = { Text("Rota Kayıt Ayarları") }, supportingContent = { Text("Kayıt sıklığı ve GPS doğruluğu filtresi") }, modifier = Modifier.clickable { currentSubScreen = "route_record_settings" })
+                ListItem(headlineContent = { Text("Rota Kayıt Ayarları") }, supportingContent = { Text("Kayıt sıklığı, GPS doğruluğu ve minimum mesafe filtresi") }, modifier = Modifier.clickable { currentSubScreen = "route_record_settings" })
                 Divider()
                 ListItem(headlineContent = { Text("Harita Görünümü") }, supportingContent = { Text("Yol veya Uydu görünümü seçin") }, modifier = Modifier.clickable { currentSubScreen = "map_type" })
                 Divider()
@@ -861,6 +867,10 @@ fun RouteRecordSettingsScreen(onBack: () -> Unit) {
     val accValues = listOf(0f, 5f, 10f, 20f, 30f)
     var accIndex by remember { mutableStateOf(accValues.indexOf(prefs.getFloat("record_gps_accuracy", 0f)).takeIf { it >= 0 } ?: 0) }
 
+    val distOptions = listOf("Kapalı", "2 m", "3 m", "5 m")
+    val distValues = listOf(0f, 2f, 3f, 5f)
+    var distIndex by remember { mutableStateOf(distValues.indexOf(prefs.getFloat("min_distance_filter", 3f)).takeIf { it >= 0 } ?: 2) }
+
     LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable(onClick = onBack).fillMaxWidth().padding(vertical = 4.dp)) {
@@ -873,6 +883,7 @@ fun RouteRecordSettingsScreen(onBack: () -> Unit) {
 
         item { SettingsDropdown("Kayıt Sıklığı", "GPS cihazı istek sıklığı", freqOptions, freqIndex) { idx -> freqIndex = idx; prefs.edit().putLong("record_freq", freqValues[idx]).apply() } }
         item { SettingsDropdown("GPS Doğruluğu Filtresi", "Doğruluk bu değerin üstüne çıktığında nokta konmaz", accOptions, accIndex) { idx -> accIndex = idx; prefs.edit().putFloat("record_gps_accuracy", accValues[idx]).apply() } }
+        item { SettingsDropdown("Minimum Mesafe Filtresi", "Bu mesafeden az hareketler titreme sayılır ve yoksayılır", distOptions, distIndex) { idx -> distIndex = idx; prefs.edit().putFloat("min_distance_filter", distValues[idx]).apply() } }
     }
 }
 
