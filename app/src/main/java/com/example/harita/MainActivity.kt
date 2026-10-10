@@ -95,16 +95,40 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-fun createBlueDot(context: Context): android.graphics.Bitmap {
-    val sizePx = (30 * context.resources.displayMetrics.density).toInt()
+fun createDirectionalDot(context: Context): android.graphics.Bitmap {
+    val density = context.resources.displayMetrics.density
+    val sizePx = (40 * density).toInt()
     val bitmap = android.graphics.Bitmap.createBitmap(sizePx, sizePx, android.graphics.Bitmap.Config.ARGB_8888)
     val canvas = android.graphics.Canvas(bitmap)
     val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
-    paint.color = android.graphics.Color.WHITE
-    paint.style = android.graphics.Paint.Style.FILL
-    canvas.drawCircle(sizePx / 2f, sizePx / 2f, sizePx / 2f, paint)
+    
+    val center = sizePx / 2f
+    val radius = 10 * density
+    
+    // Üstte küçük ok (hareket yönünü veya pusulayı gösterir)
+    val path = android.graphics.Path()
+    path.moveTo(center, center - radius - (8 * density))
+    path.lineTo(center - (6 * density), center - radius + (2 * density))
+    path.lineTo(center + (6 * density), center - radius + (2 * density))
+    path.close()
+    
     paint.color = android.graphics.Color.BLUE
-    canvas.drawCircle(sizePx / 2f, sizePx / 2f, (sizePx / 2f) - 6f, paint)
+    paint.style = android.graphics.Paint.Style.FILL
+    canvas.drawPath(path, paint)
+    
+    paint.color = android.graphics.Color.WHITE
+    paint.style = android.graphics.Paint.Style.STROKE
+    paint.strokeWidth = 2 * density
+    canvas.drawPath(path, paint)
+    
+    // Ortadaki Dairenin Beyaz Kenarı
+    paint.style = android.graphics.Paint.Style.FILL
+    canvas.drawCircle(center, center, radius, paint)
+    
+    // Ortadaki Dairenin Mavi İçi
+    paint.color = android.graphics.Color.BLUE
+    canvas.drawCircle(center, center, radius - (3 * density), paint)
+    
     return bitmap
 }
 
@@ -253,7 +277,6 @@ fun MapScreen(pastRouteIndex: Int, resetMapTrigger: Int, onClearPastRoute: () ->
     val mapPrefs = context.getSharedPreferences("harita_prefs", Context.MODE_PRIVATE)
     
     var isTracking by remember { mutableStateOf(false) }
-    var isNavigating by remember { mutableStateOf(false) }
     var mapType by remember { mutableStateOf(mapPrefs.getString("map_type", "HYBRID") ?: "HYBRID") }
     
     var mapViewInstance by remember { mutableStateOf<MapView?>(null) }
@@ -270,6 +293,8 @@ fun MapScreen(pastRouteIndex: Int, resetMapTrigger: Int, onClearPastRoute: () ->
     var currentAccuracy by remember { mutableStateOf(0f) }
     var currentZoom by remember { mutableStateOf(4.0) }
     var gpsQuality by remember { mutableStateOf("İyi") }
+    
+    var currentIconState by remember { mutableStateOf(-1) } // 0 = DirectionalDot, 1 = NavArrow
 
     val locationManager = remember { context.getSystemService(Context.LOCATION_SERVICE) as LocationManager }
     val sensorManager = remember { context.getSystemService(Context.SENSOR_SERVICE) as SensorManager }
@@ -297,7 +322,8 @@ fun MapScreen(pastRouteIndex: Int, resetMapTrigger: Int, onClearPastRoute: () ->
                     val now = System.currentTimeMillis()
                     if (now - lastCompassUpdate > 100) {
                         lastCompassUpdate = now
-                        if ((isTracking || isNavigating) && currentSpeed <= 3f) {
+                        // 3 km/s altındayken haritayı pusulaya göre döndür
+                        if (currentSpeed < 3f) {
                             mapViewInstance?.setMapOrientation(-event.values[0])
                         }
                     }
@@ -356,6 +382,15 @@ fun MapScreen(pastRouteIndex: Int, resetMapTrigger: Int, onClearPastRoute: () ->
                     else -> "Zayıf"
                 }
 
+                // 3 km/s üzerinde hareket halindeyken (rotadayken) otomatik ortalama ve GPS yönüne döndürme
+                if (currentSpeed >= 3f) {
+                    val geo = GeoPoint(location.latitude, location.longitude)
+                    mapViewInstance?.controller?.animateTo(geo)
+                    if (location.hasBearing()) {
+                        mapViewInstance?.setMapOrientation(-location.bearing)
+                    }
+                }
+
                 if (isTracking) {
                     val maxAllowedAcc = mapPrefs.getFloat("record_gps_accuracy", 0f)
                     if (maxAllowedAcc > 0f && location.hasAccuracy() && location.accuracy > maxAllowedAcc) {
@@ -383,11 +418,6 @@ fun MapScreen(pastRouteIndex: Int, resetMapTrigger: Int, onClearPastRoute: () ->
                         setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
                         setOnMarkerClickListener { _, _ -> true }
                     })
-
-                    mapViewInstance?.controller?.animateTo(geo)
-                    if (currentSpeed > 3f && location.hasBearing()) {
-                        mapViewInstance?.setMapOrientation(-location.bearing)
-                    }
                     mapViewInstance?.invalidate()
                 }
             }
@@ -420,6 +450,34 @@ fun MapScreen(pastRouteIndex: Int, resetMapTrigger: Int, onClearPastRoute: () ->
                         else -> "Zayıf"
                     }
                 }
+                
+                // Simge değiştirme ve hareket mantığı
+                if (currentSpeed >= 3f) {
+                    if (currentIconState != 1) {
+                        val navArrow = createBlueNavArrow(context)
+                        myLocationOverlay?.setPersonIcon(navArrow)
+                        myLocationOverlay?.setDirectionArrow(navArrow, navArrow)
+                        currentIconState = 1
+                        mapViewInstance?.invalidate()
+                    }
+                    // Eğer tracking aktif değilse bile hızlı giderken haritayı ortala
+                    if (!isTracking) {
+                        val geo = GeoPoint(fix.latitude, fix.longitude)
+                        mapViewInstance?.controller?.animateTo(geo)
+                        if (fix.hasBearing()) {
+                            mapViewInstance?.setMapOrientation(-fix.bearing)
+                        }
+                    }
+                } else {
+                    if (currentIconState != 0) {
+                        val dirDot = createDirectionalDot(context)
+                        myLocationOverlay?.setPersonIcon(dirDot)
+                        myLocationOverlay?.setDirectionArrow(dirDot, dirDot)
+                        currentIconState = 0
+                        mapViewInstance?.invalidate()
+                    }
+                }
+
             } ?: run {
                 currentSpeed = 0f
             }
@@ -544,9 +602,9 @@ fun MapScreen(pastRouteIndex: Int, resetMapTrigger: Int, onClearPastRoute: () ->
                     }
                     val overlay = MyLocationNewOverlay(provider, this)
                     
-                    val blueDot = createBlueDot(ctx)
-                    overlay.setDirectionArrow(blueDot, blueDot)
-                    overlay.setPersonIcon(blueDot) 
+                    val dirDot = createDirectionalDot(ctx)
+                    overlay.setDirectionArrow(dirDot, dirDot)
+                    overlay.setPersonIcon(dirDot) 
                     overlay.enableMyLocation()
                     
                     overlays.add(overlay)
@@ -652,16 +710,9 @@ fun MapScreen(pastRouteIndex: Int, resetMapTrigger: Int, onClearPastRoute: () ->
                 myLocationOverlay?.enableMyLocation()
                 val currentLoc = getBestCurrentLocation() ?: myLocationOverlay?.myLocation
                 if (currentLoc != null) {
-                    isNavigating = true
-                    val navArrow = createBlueNavArrow(context)
-                    myLocationOverlay?.setPersonIcon(navArrow)
-                    myLocationOverlay?.setDirectionArrow(navArrow, navArrow)
-
                     val locZoom = mapPrefs.getFloat("zoom_location", 15.0f).toDouble()
-                    mapViewInstance?.controller?.setCenter(currentLoc)
                     mapViewInstance?.controller?.animateTo(currentLoc) 
                     mapViewInstance?.controller?.setZoom(locZoom)
-                    mapViewInstance?.invalidate()
                 } else {
                     Toast.makeText(context, "Konum alınıyor, lütfen bekleyin...", Toast.LENGTH_SHORT).show()
                 }
@@ -686,14 +737,9 @@ fun MapScreen(pastRouteIndex: Int, resetMapTrigger: Int, onClearPastRoute: () ->
                         
                         onClearPastRoute() 
                         isTracking = true
-                        isNavigating = true
                         elapsedSeconds = 0L
                         totalDistance = 0f
                         lastLoc = startLoc.let { val l = Location(LocationManager.GPS_PROVIDER); l.latitude = it.latitude; l.longitude = it.longitude; l }
-
-                        val navArrow = createBlueNavArrow(context)
-                        myLocationOverlay?.setPersonIcon(navArrow)
-                        myLocationOverlay?.setDirectionArrow(navArrow, navArrow)
 
                         mapViewInstance?.overlays?.removeAll { it is Marker || it is Polyline || (it is FolderOverlay && it.name == "route_points") }
                         
@@ -734,14 +780,8 @@ fun MapScreen(pastRouteIndex: Int, resetMapTrigger: Int, onClearPastRoute: () ->
                 Button(
                     onClick = { 
                         isTracking = false
-                        isNavigating = false
                         try { locationManager.removeUpdates(locationListener) } catch (e: Exception) {}
-                        mapViewInstance?.setMapOrientation(0f)
                         
-                        val blueDot = createBlueDot(context)
-                        myLocationOverlay?.setPersonIcon(blueDot)
-                        myLocationOverlay?.setDirectionArrow(blueDot, blueDot)
-
                         val points = routePolyline?.actualPoints
                         val endLoc = myLocationOverlay?.myLocation ?: points?.lastOrNull()
                         if (endLoc != null) {
