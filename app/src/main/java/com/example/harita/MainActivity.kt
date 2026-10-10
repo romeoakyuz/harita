@@ -853,12 +853,12 @@ fun RouteRecordSettingsScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val prefs = context.getSharedPreferences("harita_prefs", Context.MODE_PRIVATE)
 
-    val freqOptions = listOf("1 sn", "2 sn", "3 sn", "5 sn", "10 sn")
-    val freqValues = listOf(1000L, 2000L, 3000L, 5000L, 10000L)
+    val freqOptions = listOf("1 sn", "5 sn", "10 sn", "20 sn")
+    val freqValues = listOf(1000L, 5000L, 10000L, 20000L)
     var freqIndex by remember { mutableStateOf(freqValues.indexOf(prefs.getLong("record_freq", 1000L)).takeIf { it >= 0 } ?: 0) }
 
-    val accOptions = listOf("Kapalı", "10 m", "30 m", "50 m")
-    val accValues = listOf(0f, 10f, 30f, 50f)
+    val accOptions = listOf("Kapalı", "5 m", "10 m", "20 m", "30 m")
+    val accValues = listOf(0f, 5f, 10f, 20f, 30f)
     var accIndex by remember { mutableStateOf(accValues.indexOf(prefs.getFloat("record_gps_accuracy", 0f)).takeIf { it >= 0 } ?: 0) }
 
     LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
