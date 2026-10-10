@@ -337,33 +337,21 @@ fun MapScreen(pastRouteIndex: Int, resetMapTrigger: Int, onClearPastRoute: () ->
                 }
 
                 if (isTracking) {
-                    val recAcc = mapPrefs.getFloat("record_gps_accuracy", 50f)
-                    val recMin = mapPrefs.getFloat("record_min_dist", 10f)
-                    val recMax = mapPrefs.getFloat("record_max_dist", 500f)
-
-                    if (recAcc > 0f && location.hasAccuracy() && location.accuracy > recAcc) return 
-
                     val geo = GeoPoint(location.latitude, location.longitude)
-                    var isPointValid = true
 
                     if (lastLoc != null) {
-                        val dist = lastLoc!!.distanceTo(location)
-                        if (recMin > 0f && dist < recMin) isPointValid = false
-                        else if (recMax > 0f && dist > recMax) isPointValid = false
-                        else totalDistance += dist
+                        totalDistance += lastLoc!!.distanceTo(location)
                     }
 
-                    if (isPointValid) {
-                        routePolyline?.addPoint(geo)
-                        lastLoc = location
-                        
-                        routePointsFolder?.add(Marker(mapViewInstance).apply {
-                            position = geo
-                            icon = createRoutePointIcon(context)
-                            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
-                            setOnMarkerClickListener { _, _ -> true }
-                        })
-                    }
+                    routePolyline?.addPoint(geo)
+                    lastLoc = location
+                    
+                    routePointsFolder?.add(Marker(mapViewInstance).apply {
+                        position = geo
+                        icon = createRoutePointIcon(context)
+                        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+                        setOnMarkerClickListener { _, _ -> true }
+                    })
 
                     mapViewInstance?.controller?.animateTo(geo)
                     if (currentSpeed > 3f && location.hasBearing()) {
@@ -725,7 +713,7 @@ fun SettingsScreen(onShowRouteOnMap: (Int) -> Unit, onNavigateToMap: () -> Unit)
             Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Ayarlar", style = MaterialTheme.typography.headlineMedium)
                 Divider()
-                ListItem(headlineContent = { Text("Rota Kayıt Ayarları") }, supportingContent = { Text("Kayıt sıklığı, min/max mesafe ve GPS doğruluğu") }, modifier = Modifier.clickable { currentSubScreen = "route_record_settings" })
+                ListItem(headlineContent = { Text("Rota Kayıt Ayarları") }, supportingContent = { Text("GPS cihazı kayıt sıklığı") }, modifier = Modifier.clickable { currentSubScreen = "route_record_settings" })
                 Divider()
                 ListItem(headlineContent = { Text("Harita Görünümü") }, supportingContent = { Text("Yol veya Uydu görünümü seçin") }, modifier = Modifier.clickable { currentSubScreen = "map_type" })
                 Divider()
@@ -757,18 +745,6 @@ fun RouteRecordSettingsScreen(onBack: () -> Unit) {
     val freqValues = listOf(1000L, 2000L, 3000L, 5000L, 10000L)
     var freqIndex by remember { mutableStateOf(freqValues.indexOf(prefs.getLong("record_freq", 1000L)).takeIf { it >= 0 } ?: 0) }
 
-    val minOptions = listOf("Kapalı", "5 m", "10 m", "20 m", "50 m")
-    val minValues = listOf(0f, 5f, 10f, 20f, 50f)
-    var minIndex by remember { mutableStateOf(minValues.indexOf(prefs.getFloat("record_min_dist", 10f)).takeIf { it >= 0 } ?: 2) }
-
-    val maxOptions = listOf("Kapalı", "100 m", "200 m", "500 m", "1 km", "2 km")
-    val maxValues = listOf(0f, 100f, 200f, 500f, 1000f, 2000f)
-    var maxIndex by remember { mutableStateOf(maxValues.indexOf(prefs.getFloat("record_max_dist", 500f)).takeIf { it >= 0 } ?: 3) }
-
-    val accOptions = listOf("Kapalı", "10 m", "20 m", "50 m", "100 m")
-    val accValues = listOf(0f, 10f, 20f, 50f, 100f)
-    var accIndex by remember { mutableStateOf(accValues.indexOf(prefs.getFloat("record_gps_accuracy", 50f)).takeIf { it >= 0 } ?: 3) }
-
     LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable(onClick = onBack).fillMaxWidth().padding(vertical = 4.dp)) {
@@ -780,9 +756,6 @@ fun RouteRecordSettingsScreen(onBack: () -> Unit) {
         item { Divider() }
 
         item { SettingsDropdown("Kayıt Sıklığı", "GPS cihazı istek sıklığı", freqOptions, freqIndex) { idx -> freqIndex = idx; prefs.edit().putLong("record_freq", freqValues[idx]).apply() } }
-        item { SettingsDropdown("Minimum Mesafe", "Kayıt sırasında komşu noktalar arası minimum mesafe", minOptions, minIndex) { idx -> minIndex = idx; prefs.edit().putFloat("record_min_dist", minValues[idx]).apply() } }
-        item { SettingsDropdown("Maksimum Mesafe", "Bir bölümdeki noktalar arası maksimum mesafe", maxOptions, maxIndex) { idx -> maxIndex = idx; prefs.edit().putFloat("record_max_dist", maxValues[idx]).apply() } }
-        item { SettingsDropdown("GPS Doğruluğu", "Doğruluk bundan düşükse, konum yoksayılır", accOptions, accIndex) { idx -> accIndex = idx; prefs.edit().putFloat("record_gps_accuracy", accValues[idx]).apply() } }
     }
 }
 
