@@ -273,6 +273,22 @@ fun MapScreen(pastRouteIndex: Int, resetMapTrigger: Int, onClearPastRoute: () ->
     val locationManager = remember { context.getSystemService(Context.LOCATION_SERVICE) as LocationManager }
     val sensorManager = remember { context.getSystemService(Context.SENSOR_SERVICE) as SensorManager }
 
+    // İlk açılışta otomatik GPS izni isteme launcher'ı
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            myLocationOverlay?.enableMyLocation()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        val hasFine = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        if (!hasFine) {
+            permissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+    }
+
     var lastCompassUpdate = 0L
     val sensorListener = remember {
         object : SensorEventListener {
@@ -341,6 +357,12 @@ fun MapScreen(pastRouteIndex: Int, resetMapTrigger: Int, onClearPastRoute: () ->
                 }
 
                 if (isTracking) {
+                    // GPS Doğruluğu Filtresi kontrolü (Örn: 10m, 30m, 50m)
+                    val maxAllowedAcc = mapPrefs.getFloat("record_gps_accuracy", 0f)
+                    if (maxAllowedAcc > 0f && location.hasAccuracy() && location.accuracy > maxAllowedAcc) {
+                        return // Doğruluk eşiğini aşarsa noktayı kaydetme/işaretleme
+                    }
+
                     val geo = GeoPoint(location.latitude, location.longitude)
 
                     if (lastLoc != null) {
@@ -619,7 +641,11 @@ fun MapScreen(pastRouteIndex: Int, resetMapTrigger: Int, onClearPastRoute: () ->
                 Button(
                     onClick = { 
                         val hasPerm = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
-                        if (!hasPerm) { Toast.makeText(context, "Konum izni verin!", Toast.LENGTH_SHORT).show(); return@Button }
+                        if (!hasPerm) { 
+                            permissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                            Toast.makeText(context, "Lütfen konum izni verin!", Toast.LENGTH_SHORT).show()
+                            return@Button 
+                        }
                         
                         myLocationOverlay?.enableMyLocation()
                         val startLoc = getBestCurrentLocation() ?: myLocationOverlay?.myLocation
@@ -727,7 +753,7 @@ fun SettingsScreen(onShowRouteOnMap: (Int) -> Unit, onNavigateToMap: () -> Unit)
                 Divider()
                 ListItem(headlineContent = { Text("Konum Servisleri") }, supportingContent = { Text("GPS ve Şebeke sağlayıcı ayarları") }, modifier = Modifier.clickable { currentSubScreen = "location_services" })
                 Divider()
-                ListItem(headlineContent = { Text("Rota Kayıt Ayarları") }, supportingContent = { Text("GPS cihazı kayıt sıklığı") }, modifier = Modifier.clickable { currentSubScreen = "route_record_settings" })
+                ListItem(headlineContent = { Text("Rota Kayıt Ayarları") }, supportingContent = { Text("Kayıt sıklığı ve GPS doğruluğu filtresi") }, modifier = Modifier.clickable { currentSubScreen = "route_record_settings" })
                 Divider()
                 ListItem(headlineContent = { Text("Harita Görünümü") }, supportingContent = { Text("Yol veya Uydu görünümü seçin") }, modifier = Modifier.clickable { currentSubScreen = "map_type" })
                 Divider()
@@ -802,6 +828,10 @@ fun RouteRecordSettingsScreen(onBack: () -> Unit) {
     val freqValues = listOf(1000L, 2000L, 3000L, 5000L, 10000L)
     var freqIndex by remember { mutableStateOf(freqValues.indexOf(prefs.getLong("record_freq", 1000L)).takeIf { it >= 0 } ?: 0) }
 
+    val accOptions = listOf("Kapalı", "10 m", "30 m", "50 m")
+    val accValues = listOf(0f, 10f, 30f, 50f)
+    var accIndex by remember { mutableStateOf(accValues.indexOf(prefs.getFloat("record_gps_accuracy", 0f)).takeIf { it >= 0 } ?: 0) }
+
     LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable(onClick = onBack).fillMaxWidth().padding(vertical = 4.dp)) {
@@ -813,6 +843,7 @@ fun RouteRecordSettingsScreen(onBack: () -> Unit) {
         item { Divider() }
 
         item { SettingsDropdown("Kayıt Sıklığı", "GPS cihazı istek sıklığı", freqOptions, freqIndex) { idx -> freqIndex = idx; prefs.edit().putLong("record_freq", freqValues[idx]).apply() } }
+        item { SettingsDropdown("GPS Doğruluğu Filtresi", "Doğruluk bu değerin üstüne çıktığında nokta konmaz", accOptions, accIndex) { idx -> accIndex = idx; prefs.edit().putFloat("record_gps_accuracy", accValues[idx]).apply() } }
     }
 }
 
