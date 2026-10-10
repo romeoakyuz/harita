@@ -105,7 +105,6 @@ fun createDirectionalDot(context: Context): android.graphics.Bitmap {
     val center = sizePx / 2f
     val radius = 10 * density
     
-    // Üstte küçük ok (hareket yönünü veya pusulayı gösterir)
     val path = android.graphics.Path()
     path.moveTo(center, center - radius - (8 * density))
     path.lineTo(center - (6 * density), center - radius + (2 * density))
@@ -121,11 +120,9 @@ fun createDirectionalDot(context: Context): android.graphics.Bitmap {
     paint.strokeWidth = 2 * density
     canvas.drawPath(path, paint)
     
-    // Ortadaki Dairenin Beyaz Kenarı
     paint.style = android.graphics.Paint.Style.FILL
     canvas.drawCircle(center, center, radius, paint)
     
-    // Ortadaki Dairenin Mavi İçi
     paint.color = android.graphics.Color.BLUE
     canvas.drawCircle(center, center, radius - (3 * density), paint)
     
@@ -295,6 +292,7 @@ fun MapScreen(pastRouteIndex: Int, resetMapTrigger: Int, onClearPastRoute: () ->
     var gpsQuality by remember { mutableStateOf("İyi") }
     
     var currentIconState by remember { mutableStateOf(-1) } // 0 = DirectionalDot, 1 = NavArrow
+    var isAutoRotationEnabled by remember { mutableStateOf(false) } // Yön dönmesini kontrol eden bayrak
 
     val locationManager = remember { context.getSystemService(Context.LOCATION_SERVICE) as LocationManager }
     val sensorManager = remember { context.getSystemService(Context.SENSOR_SERVICE) as SensorManager }
@@ -322,8 +320,8 @@ fun MapScreen(pastRouteIndex: Int, resetMapTrigger: Int, onClearPastRoute: () ->
                     val now = System.currentTimeMillis()
                     if (now - lastCompassUpdate > 100) {
                         lastCompassUpdate = now
-                        // 3 km/s altındayken haritayı pusulaya göre döndür
-                        if (currentSpeed < 3f) {
+                        // Sadece isAutoRotationEnabled true ise ve hız 3km altındaysa pusulaya göre döndür
+                        if (isAutoRotationEnabled && currentSpeed < 3f) {
                             mapViewInstance?.setMapOrientation(-event.values[0])
                         }
                     }
@@ -341,6 +339,8 @@ fun MapScreen(pastRouteIndex: Int, resetMapTrigger: Int, onClearPastRoute: () ->
 
     LaunchedEffect(resetMapTrigger) {
         if (resetMapTrigger > 0) {
+            isAutoRotationEnabled = false // Haritayı sıfırlarken otomatik döndürmeyi kapat
+            mapViewInstance?.setMapOrientation(0f)
             mapViewInstance?.controller?.animateTo(GeoPoint(39.0, 35.0))
             mapViewInstance?.controller?.setZoom(4.0)
             mapViewInstance?.invalidate()
@@ -382,11 +382,11 @@ fun MapScreen(pastRouteIndex: Int, resetMapTrigger: Int, onClearPastRoute: () ->
                     else -> "Zayıf"
                 }
 
-                // 3 km/s üzerinde hareket halindeyken (rotadayken) otomatik ortalama ve GPS yönüne döndürme
                 if (currentSpeed >= 3f) {
                     val geo = GeoPoint(location.latitude, location.longitude)
                     mapViewInstance?.controller?.animateTo(geo)
-                    if (location.hasBearing()) {
+                    // Sadece isAutoRotationEnabled true ise GPS yönüne göre haritayı döndür
+                    if (isAutoRotationEnabled && location.hasBearing()) {
                         mapViewInstance?.setMapOrientation(-location.bearing)
                     }
                 }
@@ -451,7 +451,6 @@ fun MapScreen(pastRouteIndex: Int, resetMapTrigger: Int, onClearPastRoute: () ->
                     }
                 }
                 
-                // Simge değiştirme ve hareket mantığı
                 if (currentSpeed >= 3f) {
                     if (currentIconState != 1) {
                         val navArrow = createBlueNavArrow(context)
@@ -460,11 +459,10 @@ fun MapScreen(pastRouteIndex: Int, resetMapTrigger: Int, onClearPastRoute: () ->
                         currentIconState = 1
                         mapViewInstance?.invalidate()
                     }
-                    // Eğer tracking aktif değilse bile hızlı giderken haritayı ortala
                     if (!isTracking) {
                         val geo = GeoPoint(fix.latitude, fix.longitude)
                         mapViewInstance?.controller?.animateTo(geo)
-                        if (fix.hasBearing()) {
+                        if (isAutoRotationEnabled && fix.hasBearing()) {
                             mapViewInstance?.setMapOrientation(-fix.bearing)
                         }
                     }
@@ -707,10 +705,11 @@ fun MapScreen(pastRouteIndex: Int, resetMapTrigger: Int, onClearPastRoute: () ->
 
         FloatingActionButton(
             onClick = { 
+                isAutoRotationEnabled = true // Konum butonuna basılınca dönme aktif
                 myLocationOverlay?.enableMyLocation()
                 val currentLoc = getBestCurrentLocation() ?: myLocationOverlay?.myLocation
                 if (currentLoc != null) {
-                    val locZoom = mapPrefs.getFloat("zoom_location", 15.0f).toDouble()
+                    val locZoom = mapPrefs.getFloat("zoom_location", 14.0f).toDouble()
                     mapViewInstance?.controller?.animateTo(currentLoc) 
                     mapViewInstance?.controller?.setZoom(locZoom)
                 } else {
@@ -730,6 +729,8 @@ fun MapScreen(pastRouteIndex: Int, resetMapTrigger: Int, onClearPastRoute: () ->
                             Toast.makeText(context, "Lütfen konum izni verin!", Toast.LENGTH_SHORT).show()
                             return@Button 
                         }
+                        
+                        isAutoRotationEnabled = true // Kayıt başladığında dönme aktif
                         
                         myLocationOverlay?.enableMyLocation()
                         val startLoc = getBestCurrentLocation() ?: myLocationOverlay?.myLocation
@@ -756,7 +757,7 @@ fun MapScreen(pastRouteIndex: Int, resetMapTrigger: Int, onClearPastRoute: () ->
                         
                         folder.add(Marker(mapViewInstance).apply { position = startLoc; icon = createRoutePointIcon(context); setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER); setOnMarkerClickListener { _, _ -> true } })
                         
-                        val trackZoom = mapPrefs.getFloat("zoom_track", 18.0f).toDouble()
+                        val trackZoom = mapPrefs.getFloat("zoom_track", 16.0f).toDouble()
                         mapViewInstance?.controller?.setCenter(startLoc)
                         mapViewInstance?.controller?.animateTo(startLoc)
                         mapViewInstance?.controller?.setZoom(trackZoom) 
@@ -780,7 +781,10 @@ fun MapScreen(pastRouteIndex: Int, resetMapTrigger: Int, onClearPastRoute: () ->
                 Button(
                     onClick = { 
                         isTracking = false
+                        isAutoRotationEnabled = false // Kayıt bitince otomatik dönmeyi kapat
                         try { locationManager.removeUpdates(locationListener) } catch (e: Exception) {}
+                        
+                        mapViewInstance?.setMapOrientation(0f) // Kayıt bitince haritayı tekrar Kuzeye sabitle
                         
                         val points = routePolyline?.actualPoints
                         val endLoc = myLocationOverlay?.myLocation ?: points?.lastOrNull()
@@ -990,8 +994,8 @@ fun ZoomSettingsScreen(onBack: () -> Unit) {
     val prefs = context.getSharedPreferences("harita_prefs", Context.MODE_PRIVATE)
 
     var defaultZoom by remember { mutableStateOf(prefs.getFloat("zoom_default", 4.0f)) }
-    var locationZoom by remember { mutableStateOf(prefs.getFloat("zoom_location", 15.0f)) }
-    var trackZoom by remember { mutableStateOf(prefs.getFloat("zoom_track", 18.0f)) }
+    var locationZoom by remember { mutableStateOf(prefs.getFloat("zoom_location", 14.0f)) }
+    var trackZoom by remember { mutableStateOf(prefs.getFloat("zoom_track", 16.0f)) }
 
     LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item {
