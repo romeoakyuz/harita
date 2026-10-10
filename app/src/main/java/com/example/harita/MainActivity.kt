@@ -251,7 +251,8 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
     val mapPrefs = context.getSharedPreferences("harita_prefs", Context.MODE_PRIVATE)
     
     var isTracking by remember { mutableStateOf(false) }
-    var mapType by remember { mutableStateOf(mapPrefs.getString("map_type", "ROAD") ?: "ROAD") }
+    // Varsayılan harita görünümünü Uydu (HYBRID) yaptık
+    var mapType by remember { mutableStateOf(mapPrefs.getString("map_type", "HYBRID") ?: "HYBRID") }
     
     var mapViewInstance by remember { mutableStateOf<MapView?>(null) }
     var myLocationOverlay by remember { mutableStateOf<MyLocationNewOverlay?>(null) }
@@ -369,7 +370,7 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
     }
 
     LaunchedEffect(Unit) {
-        mapType = mapPrefs.getString("map_type", "ROAD") ?: "ROAD"
+        mapType = mapPrefs.getString("map_type", "HYBRID") ?: "HYBRID"
     }
 
     LaunchedEffect(isTracking) {
@@ -483,7 +484,7 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                     setMinZoomLevel(2.0)
                     setMaxZoomLevel(22.0)
                     
-                    // Harita açıldığında Türkiye'yi ortala (39.0, 35.0) ve Zoom 4 yap
+                    // Türkiye merkez (39.0, 35.0) ve Zoom 4
                     setExpectedCenter(GeoPoint(39.0, 35.0))
                     controller.setZoom(4.0)
                     
@@ -599,11 +600,12 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                 val currentLoc = getBestCurrentLocation() ?: myLocationOverlay?.myLocation
                 if (currentLoc != null) {
                     val locZoom = mapPrefs.getFloat("zoom_location", 15.0f).toDouble()
+                    mapViewInstance?.controller?.setCenter(currentLoc)
                     mapViewInstance?.controller?.animateTo(currentLoc) 
                     mapViewInstance?.controller?.setZoom(locZoom)
                     mapViewInstance?.invalidate()
                 } else {
-                    Toast.makeText(context, "Konum aranıyor, GPS veya internet açık olduğundan emin olun...", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "Konum alınıyor, lütfen bekleyin...", Toast.LENGTH_SHORT).show()
                 }
             },
             modifier = Modifier.align(Alignment.BottomEnd).padding(bottom = 100.dp, end = 16.dp)
@@ -646,6 +648,7 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                         folder.add(Marker(mapViewInstance).apply { position = startLoc; icon = createRoutePointIcon(context); setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER); setOnMarkerClickListener { _, _ -> true } })
                         
                         val trackZoom = mapPrefs.getFloat("zoom_track", 18.0f).toDouble()
+                        mapViewInstance?.controller?.setCenter(startLoc)
                         mapViewInstance?.controller?.animateTo(startLoc)
                         mapViewInstance?.controller?.setZoom(trackZoom) 
                         mapViewInstance?.invalidate()
@@ -857,7 +860,7 @@ fun ZoomSettingsScreen(onBack: () -> Unit) {
 fun MapTypeScreen(onBack: () -> Unit, onNavigateToMap: () -> Unit) {
     val context = LocalContext.current
     val prefs = context.getSharedPreferences("harita_prefs", Context.MODE_PRIVATE)
-    var selectedType by remember { mutableStateOf(prefs.getString("map_type", "ROAD") ?: "ROAD") }
+    var selectedType by remember { mutableStateOf(prefs.getString("map_type", "HYBRID") ?: "HYBRID") }
 
     LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
