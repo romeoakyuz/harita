@@ -253,6 +253,7 @@ fun MapScreen(pastRouteIndex: Int, resetMapTrigger: Int, onClearPastRoute: () ->
     val mapPrefs = context.getSharedPreferences("harita_prefs", Context.MODE_PRIVATE)
     
     var isTracking by remember { mutableStateOf(false) }
+    var isNavigating by remember { mutableStateOf(false) }
     var mapType by remember { mutableStateOf(mapPrefs.getString("map_type", "HYBRID") ?: "HYBRID") }
     
     var mapViewInstance by remember { mutableStateOf<MapView?>(null) }
@@ -296,7 +297,7 @@ fun MapScreen(pastRouteIndex: Int, resetMapTrigger: Int, onClearPastRoute: () ->
                     val now = System.currentTimeMillis()
                     if (now - lastCompassUpdate > 100) {
                         lastCompassUpdate = now
-                        if (isTracking && currentSpeed <= 3f) {
+                        if ((isTracking || isNavigating) && currentSpeed <= 3f) {
                             mapViewInstance?.setMapOrientation(-event.values[0])
                         }
                     }
@@ -645,6 +646,11 @@ fun MapScreen(pastRouteIndex: Int, resetMapTrigger: Int, onClearPastRoute: () ->
                 myLocationOverlay?.enableMyLocation()
                 val currentLoc = getBestCurrentLocation() ?: myLocationOverlay?.myLocation
                 if (currentLoc != null) {
+                    isNavigating = true
+                    val navArrow = createBlueNavArrow(context)
+                    myLocationOverlay?.setPersonIcon(navArrow)
+                    myLocationOverlay?.setDirectionArrow(navArrow, navArrow)
+
                     val locZoom = mapPrefs.getFloat("zoom_location", 15.0f).toDouble()
                     mapViewInstance?.controller?.setCenter(currentLoc)
                     mapViewInstance?.controller?.animateTo(currentLoc) 
@@ -674,6 +680,7 @@ fun MapScreen(pastRouteIndex: Int, resetMapTrigger: Int, onClearPastRoute: () ->
                         
                         onClearPastRoute() 
                         isTracking = true
+                        isNavigating = true
                         elapsedSeconds = 0L
                         totalDistance = 0f
                         lastLoc = startLoc.let { val l = Location(LocationManager.GPS_PROVIDER); l.latitude = it.latitude; l.longitude = it.longitude; l }
@@ -721,6 +728,7 @@ fun MapScreen(pastRouteIndex: Int, resetMapTrigger: Int, onClearPastRoute: () ->
                 Button(
                     onClick = { 
                         isTracking = false
+                        isNavigating = false
                         try { locationManager.removeUpdates(locationListener) } catch (e: Exception) {}
                         mapViewInstance?.setMapOrientation(0f)
                         
