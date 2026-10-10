@@ -311,8 +311,12 @@ fun MapScreen(pastRouteIndex: Int, resetMapTrigger: Int, onClearPastRoute: () ->
             val hasCoarse = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
             if (!hasFine && !hasCoarse) return null
 
-            val gpsLoc = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
-            val netLoc = locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+            val useGps = mapPrefs.getBoolean("use_gps", true)
+            val useNet = mapPrefs.getBoolean("use_network", true)
+
+            val gpsLoc = if (useGps) locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER) else null
+            val netLoc = if (useNet) locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER) else null
+
             val bestLoc: Location? = when {
                 gpsLoc != null && netLoc != null -> if (gpsLoc.time > netLoc.time) gpsLoc else netLoc
                 else -> gpsLoc ?: netLoc
@@ -481,7 +485,6 @@ fun MapScreen(pastRouteIndex: Int, resetMapTrigger: Int, onClearPastRoute: () ->
                     setMinZoomLevel(2.0)
                     setMaxZoomLevel(22.0)
                     
-                    // Türkiye merkez (39.0, 35.0) ve Zoom 4
                     setExpectedCenter(GeoPoint(39.0, 35.0))
                     controller.setZoom(4.0)
                     
@@ -489,7 +492,10 @@ fun MapScreen(pastRouteIndex: Int, resetMapTrigger: Int, onClearPastRoute: () ->
                     overlays.add(rotationGestureOverlay)
                     
                     val provider = GpsMyLocationProvider(ctx).apply {
-                        try { addLocationSource(LocationManager.NETWORK_PROVIDER) } catch (e: Exception) {}
+                        val useNet = mapPrefs.getBoolean("use_network", true)
+                        if (useNet) {
+                            try { addLocationSource(LocationManager.NETWORK_PROVIDER) } catch (e: Exception) {}
+                        }
                     }
                     val overlay = MyLocationNewOverlay(provider, this)
                     
@@ -651,9 +657,15 @@ fun MapScreen(pastRouteIndex: Int, resetMapTrigger: Int, onClearPastRoute: () ->
                         mapViewInstance?.invalidate()
 
                         val recFreq = mapPrefs.getLong("record_freq", 1000L)
+                        val useGps = mapPrefs.getBoolean("use_gps", true)
+                        val useNet = mapPrefs.getBoolean("use_network", true)
                         try { 
-                            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, recFreq, 0f, locationListener) 
-                            locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, recFreq, 0f, locationListener)
+                            if (useGps) {
+                                locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, recFreq, 0f, locationListener) 
+                            }
+                            if (useNet) {
+                                locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, recFreq, 0f, locationListener)
+                            }
                         } catch (e: SecurityException) { }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary), modifier = Modifier.height(50.dp).width(160.dp)
@@ -713,6 +725,8 @@ fun SettingsScreen(onShowRouteOnMap: (Int) -> Unit, onNavigateToMap: () -> Unit)
             Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Ayarlar", style = MaterialTheme.typography.headlineMedium)
                 Divider()
+                ListItem(headlineContent = { Text("Konum Servisleri") }, supportingContent = { Text("GPS ve Şebeke sağlayıcı ayarları") }, modifier = Modifier.clickable { currentSubScreen = "location_services" })
+                Divider()
                 ListItem(headlineContent = { Text("Rota Kayıt Ayarları") }, supportingContent = { Text("GPS cihazı kayıt sıklığı") }, modifier = Modifier.clickable { currentSubScreen = "route_record_settings" })
                 Divider()
                 ListItem(headlineContent = { Text("Harita Görünümü") }, supportingContent = { Text("Yol veya Uydu görünümü seçin") }, modifier = Modifier.clickable { currentSubScreen = "map_type" })
@@ -726,12 +740,55 @@ fun SettingsScreen(onShowRouteOnMap: (Int) -> Unit, onNavigateToMap: () -> Unit)
                 ListItem(headlineContent = { Text("Geçmiş Rotalar") }, supportingContent = { Text("Kaydedilen rotaları yönetin") }, modifier = Modifier.clickable { currentSubScreen = "past_routes" })
             }
         }
+        "location_services" -> { LocationServicesScreen(onBack = { currentSubScreen = "main" }) }
         "route_record_settings" -> { RouteRecordSettingsScreen(onBack = { currentSubScreen = "main" }) }
         "map_type" -> { MapTypeScreen(onBack = { currentSubScreen = "main" }, onNavigateToMap = onNavigateToMap) }
         "zoom_settings" -> { ZoomSettingsScreen(onBack = { currentSubScreen = "main" }) }
         "widgets_settings" -> { WidgetsSettingsScreen(onBack = { currentSubScreen = "main" }) }
         "permissions" -> { PermissionsDetailScreen(onBack = { currentSubScreen = "main" }) }
         "past_routes" -> { PastRoutesScreen(onBack = { currentSubScreen = "main" }, onShowRouteOnMap = onShowRouteOnMap) }
+    }
+}
+
+@Composable
+fun LocationServicesScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
+    val prefs = context.getSharedPreferences("harita_prefs", Context.MODE_PRIVATE)
+
+    var useGps by remember { mutableStateOf(prefs.getBoolean("use_gps", true)) }
+    var useNetwork by remember { mutableStateOf(prefs.getBoolean("use_network", true)) }
+
+    LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        item {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable(onClick = onBack).fillMaxWidth().padding(vertical = 4.dp)) {
+                Text("< Geri", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                Spacer(modifier = Modifier.width(16.dp))
+                Text("Konum Servisleri", style = MaterialTheme.typography.headlineMedium)
+            }
+        }
+        item { Divider() }
+        item {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Row(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("GPS Uydu Konumu", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text("Yüksek hassasiyetli uydu konum servisi", fontSize = 12.sp, color = Color.Gray)
+                    }
+                    Switch(checked = useGps, onCheckedChange = { useGps = it; prefs.edit().putBoolean("use_gps", it).apply() })
+                }
+            }
+        }
+        item {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Row(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Şebeke (Network) Konumu", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text("Baz istasyonu ve Wi-Fi tabanlı kaba konum", fontSize = 12.sp, color = Color.Gray)
+                    }
+                    Switch(checked = useNetwork, onCheckedChange = { useNetwork = it; prefs.edit().putBoolean("use_network", it).apply() })
+                }
+            }
+        }
     }
 }
 
