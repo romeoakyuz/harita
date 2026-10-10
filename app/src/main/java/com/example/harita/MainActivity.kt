@@ -273,7 +273,6 @@ fun MapScreen(pastRouteIndex: Int, resetMapTrigger: Int, onClearPastRoute: () ->
     val locationManager = remember { context.getSystemService(Context.LOCATION_SERVICE) as LocationManager }
     val sensorManager = remember { context.getSystemService(Context.SENSOR_SERVICE) as SensorManager }
 
-    // İlk açılışta otomatik GPS izni isteme launcher'ı
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
@@ -357,10 +356,9 @@ fun MapScreen(pastRouteIndex: Int, resetMapTrigger: Int, onClearPastRoute: () ->
                 }
 
                 if (isTracking) {
-                    // GPS Doğruluğu Filtresi kontrolü (Örn: 10m, 30m, 50m)
                     val maxAllowedAcc = mapPrefs.getFloat("record_gps_accuracy", 0f)
                     if (maxAllowedAcc > 0f && location.hasAccuracy() && location.accuracy > maxAllowedAcc) {
-                        return // Doğruluk eşiğini aşarsa noktayı kaydetme/işaretleme
+                        return 
                     }
 
                     val geo = GeoPoint(location.latitude, location.longitude)
@@ -396,15 +394,26 @@ fun MapScreen(pastRouteIndex: Int, resetMapTrigger: Int, onClearPastRoute: () ->
         mapType = mapPrefs.getString("map_type", "HYBRID") ?: "HYBRID"
     }
 
-    LaunchedEffect(isTracking) {
+    LaunchedEffect(Unit) {
         while (true) {
             delay(1000L)
             if (isTracking) elapsedSeconds++
             
             mapViewInstance?.let { currentZoom = it.zoomLevelDouble }
+            
+            // Her zaman myLocationOverlay üzerinden son konumu, hızı, rakımı ve doğruluğu oku
             myLocationOverlay?.lastFix?.let { fix ->
                 currentAltitude = fix.altitude
                 currentSpeed = if (fix.hasSpeed()) fix.speed * 3.6f else 0f
+                if (fix.hasAccuracy()) {
+                    currentAccuracy = fix.accuracy
+                    gpsQuality = when {
+                        currentAccuracy <= 5f -> "Mükemmel"
+                        currentAccuracy <= 15f -> "İyi"
+                        currentAccuracy <= 30f -> "Orta"
+                        else -> "Zayıf"
+                    }
+                }
             } ?: run {
                 currentSpeed = 0f
             }
