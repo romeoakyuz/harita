@@ -95,7 +95,6 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-// 1. Dururken kullanılacak Orijinal Mavi Nokta
 fun createBlueDot(context: Context): android.graphics.Bitmap {
     val sizePx = (30 * context.resources.displayMetrics.density).toInt()
     val bitmap = android.graphics.Bitmap.createBitmap(sizePx, sizePx, android.graphics.Bitmap.Config.ARGB_8888)
@@ -109,7 +108,6 @@ fun createBlueDot(context: Context): android.graphics.Bitmap {
     return bitmap
 }
 
-// 2. Takip (Başlat) sırasında kullanılacak Navigasyon Üçgeni
 fun createBlueNavArrow(context: Context): android.graphics.Bitmap {
     val sizePx = (42 * context.resources.displayMetrics.density).toInt()
     val bitmap = android.graphics.Bitmap.createBitmap(sizePx, sizePx, android.graphics.Bitmap.Config.ARGB_8888)
@@ -131,7 +129,6 @@ fun createBlueNavArrow(context: Context): android.graphics.Bitmap {
     return bitmap
 }
 
-// 3. Başlangıç (Yeşil) ve Bitiş (Kırmızı) İçin Yazısız Temiz Noktalar
 fun createSolidDot(context: Context, color: Int): android.graphics.drawable.Drawable {
     val sizePx = (24 * context.resources.displayMetrics.density).toInt()
     val bitmap = android.graphics.Bitmap.createBitmap(sizePx, sizePx, android.graphics.Bitmap.Config.ARGB_8888)
@@ -147,7 +144,6 @@ fun createSolidDot(context: Context, color: Int): android.graphics.drawable.Draw
     return android.graphics.drawable.BitmapDrawable(context.resources, bitmap)
 }
 
-// 4. Kırmızı çizgi üzerine her kayıtta işlenecek küçük işaret noktası
 fun createRoutePointIcon(context: Context): android.graphics.drawable.Drawable {
     val sizePx = (14 * context.resources.displayMetrics.density).toInt()
     val bitmap = android.graphics.Bitmap.createBitmap(sizePx, sizePx, android.graphics.Bitmap.Config.ARGB_8888)
@@ -335,7 +331,6 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                     val recMin = mapPrefs.getFloat("record_min_dist", 10f)
                     val recMax = mapPrefs.getFloat("record_max_dist", 500f)
 
-                    // 0f = Kapalı demektir
                     if (recAcc > 0f && location.hasAccuracy() && location.accuracy > recAcc) return 
 
                     val geo = GeoPoint(location.latitude, location.longitude)
@@ -352,7 +347,6 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                         routePolyline?.addPoint(geo)
                         lastLoc = location
                         
-                        // Çizgi üzerine GPS nokta işaretçisi ekle
                         routePointsFolder?.add(Marker(mapViewInstance).apply {
                             position = geo
                             icon = createRoutePointIcon(context)
@@ -427,7 +421,6 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                 mapViewInstance?.overlays?.add(polyline)
                 mapViewInstance?.overlays?.add(folder)
                 
-                // Başlangıç ve Bitiş Noktalarını da koyalım
                 if (polyline.actualPoints.isNotEmpty()) {
                     mapViewInstance?.overlays?.add(Marker(mapViewInstance).apply { position = polyline.actualPoints.first(); setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER); icon = createSolidDot(context, android.graphics.Color.GREEN); setOnMarkerClickListener { _, _ -> true } })
                     mapViewInstance?.overlays?.add(Marker(mapViewInstance).apply { position = polyline.actualPoints.last(); setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER); icon = createSolidDot(context, android.graphics.Color.RED); setOnMarkerClickListener { _, _ -> true } })
@@ -490,14 +483,9 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                     setMinZoomLevel(2.0)
                     setMaxZoomLevel(22.0)
                     
-                    val isFirstLaunch = mapPrefs.getBoolean("is_first_launch", true)
-                    val defaultZoom = mapPrefs.getFloat("zoom_default", 4.0f).toDouble()
-                    val centerLat = if (isFirstLaunch) 39.0 else mapPrefs.getFloat("last_lat", 39.0f).toDouble()
-                    val centerLon = if (isFirstLaunch) 35.0 else mapPrefs.getFloat("last_lon", 35.0f).toDouble()
-                    
-                    setExpectedCenter(GeoPoint(centerLat, centerLon))
-                    controller.setZoom(defaultZoom)
-                    if (isFirstLaunch) mapPrefs.edit().putBoolean("is_first_launch", false).apply()
+                    // Harita açıldığında Türkiye'yi ortala (39.0, 35.0) ve Zoom 4 yap
+                    setExpectedCenter(GeoPoint(39.0, 35.0))
+                    controller.setZoom(4.0)
                     
                     val rotationGestureOverlay = RotationGestureOverlay(this).apply { isEnabled = true }
                     overlays.add(rotationGestureOverlay)
@@ -507,17 +495,10 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                     }
                     val overlay = MyLocationNewOverlay(provider, this)
                     
-                    // Başlangıçta ikisi de yuvarlak nokta (duruyor)
                     val blueDot = createBlueDot(ctx)
                     overlay.setDirectionArrow(blueDot, blueDot)
                     overlay.setPersonIcon(blueDot) 
                     overlay.enableMyLocation()
-                    
-                    overlay.runOnFirstFix {
-                        post {
-                            overlay.myLocation?.let { mapPrefs.edit().putFloat("last_lat", it.latitude.toFloat()).putFloat("last_lon", it.longitude.toFloat()).apply() }
-                        }
-                    }
                     
                     overlays.add(overlay)
                     myLocationOverlay = overlay
@@ -645,28 +626,23 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                         totalDistance = 0f
                         lastLoc = startLoc.let { val l = Location(LocationManager.GPS_PROVIDER); l.latitude = it.latitude; l.longitude = it.longitude; l }
 
-                        // Noktadan -> Üçgene Geçiş
                         val navArrow = createBlueNavArrow(context)
                         myLocationOverlay?.setPersonIcon(navArrow)
                         myLocationOverlay?.setDirectionArrow(navArrow, navArrow)
 
                         mapViewInstance?.overlays?.removeAll { it is Marker || it is Polyline || (it is FolderOverlay && it.name == "route_points") }
                         
-                        // Klasör overlay oluştur (Noktalar için)
                         val folder = FolderOverlay().apply { name = "route_points" }
                         mapViewInstance?.overlays?.add(folder)
                         routePointsFolder = folder
 
-                        // Çizgi
                         val polyline = Polyline().apply { outlinePaint.color = android.graphics.Color.RED; outlinePaint.strokeWidth = 14f; addPoint(startLoc) }
                         mapViewInstance?.overlays?.add(polyline)
                         routePolyline = polyline
 
-                        // Başlangıç işareti (Sadece Yeşil Nokta, Yazısız)
                         val startMarker = Marker(mapViewInstance).apply { position = startLoc; setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER); icon = createSolidDot(context, android.graphics.Color.GREEN); setOnMarkerClickListener { _, _ -> true } }
                         mapViewInstance?.overlays?.add(startMarker)
                         
-                        // Çizgi üstü ilk nokta
                         folder.add(Marker(mapViewInstance).apply { position = startLoc; icon = createRoutePointIcon(context); setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER); setOnMarkerClickListener { _, _ -> true } })
                         
                         val trackZoom = mapPrefs.getFloat("zoom_track", 18.0f).toDouble()
@@ -689,7 +665,6 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                         try { locationManager.removeUpdates(locationListener) } catch (e: Exception) {}
                         mapViewInstance?.setMapOrientation(0f)
                         
-                        // Üçgenden -> Noktaya Geri Dönüş
                         val blueDot = createBlueDot(context)
                         myLocationOverlay?.setPersonIcon(blueDot)
                         myLocationOverlay?.setDirectionArrow(blueDot, blueDot)
@@ -697,7 +672,6 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
                         val points = routePolyline?.actualPoints
                         val endLoc = myLocationOverlay?.myLocation ?: points?.lastOrNull()
                         if (endLoc != null) {
-                            // Bitiş İşareti (Sadece Kırmızı Nokta, Yazısız)
                             val endMarker = Marker(mapViewInstance).apply { position = endLoc; setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER); icon = createSolidDot(context, android.graphics.Color.RED); setOnMarkerClickListener { _, _ -> true } }
                             mapViewInstance?.overlays?.add(endMarker)
                             mapViewInstance?.invalidate()
