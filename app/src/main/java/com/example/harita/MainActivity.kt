@@ -174,6 +174,7 @@ fun formatDistance(meters: Float): String {
 fun RouteTrackerApp() {
     val navController = rememberNavController()
     var selectedPastRouteIndex by remember { mutableStateOf(-1) }
+    var resetMapTrigger by remember { mutableStateOf(0) }
     
     Scaffold(
         bottomBar = {
@@ -191,6 +192,7 @@ fun RouteTrackerApp() {
                                 restoreState = true
                             } 
                         }
+                        resetMapTrigger++
                     }
                 )
                 NavigationBarItem(
@@ -220,7 +222,7 @@ fun RouteTrackerApp() {
             popExitTransition = { fadeOut(animationSpec = tween(400)) }
         ) {
             composable("map") { 
-                MapScreen(selectedPastRouteIndex) { selectedPastRouteIndex = -1 }
+                MapScreen(selectedPastRouteIndex, resetMapTrigger) { selectedPastRouteIndex = -1 }
             }
             composable("settings") { 
                 SettingsScreen(
@@ -246,12 +248,11 @@ fun RouteTrackerApp() {
 }
 
 @Composable
-fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
+fun MapScreen(pastRouteIndex: Int, resetMapTrigger: Int, onClearPastRoute: () -> Unit) {
     val context = LocalContext.current
     val mapPrefs = context.getSharedPreferences("harita_prefs", Context.MODE_PRIVATE)
     
     var isTracking by remember { mutableStateOf(false) }
-    // Varsayılan harita görünümünü Uydu (HYBRID) yaptık
     var mapType by remember { mutableStateOf(mapPrefs.getString("map_type", "HYBRID") ?: "HYBRID") }
     
     var mapViewInstance by remember { mutableStateOf<MapView?>(null) }
@@ -294,6 +295,14 @@ fun MapScreen(pastRouteIndex: Int, onClearPastRoute: () -> Unit) {
         val sensor = sensorManager.getDefaultSensor(Sensor.TYPE_ORIENTATION)
         sensorManager.registerListener(sensorListener, sensor, SensorManager.SENSOR_DELAY_UI)
         onDispose { sensorManager.unregisterListener(sensorListener) }
+    }
+
+    LaunchedEffect(resetMapTrigger) {
+        if (resetMapTrigger > 0) {
+            mapViewInstance?.controller?.animateTo(GeoPoint(39.0, 35.0))
+            mapViewInstance?.controller?.setZoom(4.0)
+            mapViewInstance?.invalidate()
+        }
     }
     
     fun getBestCurrentLocation(): GeoPoint? {
