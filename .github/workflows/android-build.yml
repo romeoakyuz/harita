@@ -1,0 +1,43 @@
+name: Android CI Build
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Kodu Klonla
+      uses: actions/checkout@v4
+
+    - name: Java 21 Kurulumu (OpenJDK)
+      uses: actions/setup-java@v4
+      with:
+        java-version: '21'
+        distribution: 'temurin'
+
+    - name: Gradle 8.4 Kurulumu
+      uses: gradle/actions/setup-gradle@v3
+      with:
+        gradle-version: '8.4'
+
+    - name: Termux AAPT2 Ayarını Bulut İçin Yoksay
+      run: |
+        if [ -f gradle.properties ]; then
+          sed -i '/aapt2FromMavenOverride/d' gradle.properties
+        fi
+
+    - name: Projeyi Derle (Debug APK)
+      run: gradle clean assembleDebug
+
+    - name: Üretilen APK'yı Yükle (Artifact)
+      uses: actions/upload-artifact@v4
+      with:
+        name: Harita-App-Debug-APK
+        path: app/build/outputs/apk/debug/app-debug.apk
+        retention-days: 7

@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp"
+    android:background="#212121">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Zoom ve Görünüm Ayarları"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        android:textColor="#FFFFFF"
+        android:layout_marginBottom="16dp"/>
+
+    <!-- 1. Uygulama İlk Açılış Zoom -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Uygulama İlk Açılış Zoom"
+        android:textColor="#FFFFFF"
+        android:textStyle="bold"/>
+    <TextView
+        android:id="@+id/txtStartupVal"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Değer: 3.0"
+        android:textColor="#AAAAAA"
+        android:textSize="12sp"/>
+    <SeekBar
+        android:id="@+id/seekBarStartup"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="12dp"/>
+
+    <!-- 2. Konum Butonu - 1. Basış Zoom -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Konum Butonu - 1. Basış Zoom"
+        android:textColor="#FFFFFF"
+        android:textStyle="bold"/>
+    <TextView
+        android:id="@+id/txtCustom1Val"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Değer: 12.0"
+        android:textColor="#AAAAAA"
+        android:textSize="12sp"/>
+    <SeekBar
+        android:id="@+id/seekBarCustom1"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="12dp"/>
+
+    <!-- 3. Konum Butonu - 2. Basış Zoom -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Konum Butonu - 2. Basış Zoom"
+        android:textColor="#FFFFFF"
+        android:textStyle="bold"/>
+    <TextView
+        android:id="@+id/txtCustom2Val"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Değer: 18.0"
+        android:textColor="#AAAAAA"
+        android:textSize="12sp"/>
+    <SeekBar
+        android:id="@+id/seekBarCustom2"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="12dp"/>
+
+    <!-- 4. Harita Sekmesi Zoom -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Harita Sekmesi Zoom"
+        android:textColor="#FFFFFF"
+        android:textStyle="bold"/>
+    <TextView
+        android:id="@+id/txtMapTabVal"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Değer: 3.0"
+        android:textColor="#AAAAAA"
+        android:textSize="12sp"/>
+    <SeekBar
+        android:id="@+id/seekBarMapTab"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="12dp"/>
+
+    <!-- 5. Rota Kayıt Sekmesi Zoom -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Rota Kayıt Sekmesi Zoom"
+        android:textColor="#FFFFFF"
+        android:textStyle="bold"/>
+    <TextView
+        android:id="@+id/txtRouteVal"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Değer: 15.0"
+        android:textColor="#AAAAAA"
+        android:textSize="12sp"/>
+    <SeekBar
+        android:id="@+id/seekBarRoute"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"/>
+
+</LinearLayout>

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp">
+    
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Harita Altyapısı Seçin"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="16dp"/>
+        
+    <RadioGroup android:id="@+id/rgMapProvider" android:layout_width="match_parent" android:layout_height="wrap_content">
+        <RadioButton android:id="@+id/rbGoogle" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Google Haritalar (Net ve Detaylı)" android:layout_marginBottom="12dp"/>
+        <RadioButton android:id="@+id/rbOsm" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="OpenStreetMap (OSM - Açık Kaynak)" android:layout_marginBottom="12dp"/>
+        <RadioButton android:id="@+id/rbOffline" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Çevrimdışı Vektör (Mapsforge - 586MB Dosya)" />
+    </RadioGroup>
+</LinearLayout>

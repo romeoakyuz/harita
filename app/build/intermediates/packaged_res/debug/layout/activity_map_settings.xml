@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Harita Ayarları"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="16dp"/>
+
+    <LinearLayout android:id="@+id/layoutGpsSelect" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="12dp" android:background="?attr/selectableItemBackground" android:layout_marginBottom="8dp">
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="GPS Seçimi" android:textSize="16sp" android:textStyle="bold"/>
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Konum sağlayıcı kaynaklarını yapılandır" android:textSize="12sp" android:textColor="#757575"/>
+    </LinearLayout>
+
+    <LinearLayout android:id="@+id/layoutMapProvider" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="12dp" android:background="?attr/selectableItemBackground" android:layout_marginBottom="8dp">
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Harita Sağlayıcı" android:textSize="16sp" android:textStyle="bold"/>
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Google, OSM veya Çevrimdışı Vektör seçimi" android:textSize="12sp" android:textColor="#757575"/>
+    </LinearLayout>
+
+    <LinearLayout android:id="@+id/layoutViewMode" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="12dp" android:background="?attr/selectableItemBackground" android:layout_marginBottom="8dp">
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Görünüm" android:textSize="16sp" android:textStyle="bold"/>
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Normal veya Uydu (Hybrid) mod geçişi" android:textSize="12sp" android:textColor="#757575"/>
+    </LinearLayout>
+
+    <LinearLayout android:id="@+id/layoutZoom" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="12dp" android:background="?attr/selectableItemBackground" android:layout_marginBottom="8dp">
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Zoom" android:textSize="16sp" android:textStyle="bold"/>
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Başlangıç ve konum zoom seviyeleri" android:textSize="12sp" android:textColor="#757575"/>
+    </LinearLayout>
+
+    <!-- YENİ EKLENEN EKRAN ARAÇLARI MENÜSÜ -->
+    <LinearLayout android:id="@+id/layoutScreenTools" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="12dp" android:background="?attr/selectableItemBackground">
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Ekran Araçları" android:textSize="16sp" android:textStyle="bold"/>
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Hız göstergesi ve harita üzeri araçlar" android:textSize="12sp" android:textColor="#757575"/>
+    </LinearLayout>
+
+</LinearLayout>
