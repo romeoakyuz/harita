@@ -3,6 +3,9 @@ package com.ornek.harita
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.Path
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
@@ -26,6 +29,7 @@ import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.tileprovider.util.SimpleRegisterReceiver
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
+import org.osmdroid.views.overlay.Polyline
 import org.osmdroid.views.overlay.gestures.RotationGestureOverlay
 import org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider
 import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay
@@ -39,14 +43,22 @@ class RouteActivity : AppCompatActivity() {
     private lateinit var txtSpeed: TextView
     private lateinit var txtAccuracy: TextView
     private lateinit var btnMyLocationCustom: ImageButton
+    private lateinit var btnRecordRoute: ImageButton
+    
+    private var isRecording = false
+    private val routePolyline = Polyline()
+    private val routePoints = ArrayList<GeoPoint>()
     
     private var locationManager: LocationManager? = null
     private lateinit var dotBitmap: Bitmap
     private lateinit var arrowBitmap: Bitmap
+    private lateinit var playBitmap: Bitmap
+    private lateinit var stopBitmap: Bitmap
 
     private val locationListener = object : LocationListener {
         override fun onLocationChanged(location: Location) {
             val speedKmh = if (location.hasSpeed()) (location.speed * 3.6).toInt() else 0
+            val currentPoint = GeoPoint(location.latitude, location.longitude)
             
             if (txtSpeed.visibility == View.VISIBLE) {
                 txtSpeed.text = "$speedKmh"
@@ -55,12 +67,18 @@ class RouteActivity : AppCompatActivity() {
                 txtAccuracy.text = if (location.hasAccuracy()) "±${location.accuracy.toInt()}m" else "-"
             }
 
+            if (isRecording) {
+                routePoints.add(currentPoint)
+                routePolyline.setPoints(routePoints)
+                map.invalidate()
+            }
+
             if (speedKmh > 5) {
                 if (::arrowBitmap.isInitialized) {
                     locationOverlay.setDirectionIcon(arrowBitmap)
                     locationOverlay.setPersonIcon(arrowBitmap)
                 }
-                map.controller.animateTo(GeoPoint(location.latitude, location.longitude))
+                map.controller.animateTo(currentPoint)
                 if (!locationOverlay.isFollowLocationEnabled) {
                     locationOverlay.enableFollowLocation()
                 }
@@ -93,24 +111,22 @@ class RouteActivity : AppCompatActivity() {
 
         val prefs = PreferenceManager.getDefaultSharedPreferences(this)
 
-        // 1. HIZ GÖSTERGESİ (Ayrı Sürüklenebilir)
+        // 1. HIZ GÖSTERGESİ (Sürüklenebilir)
         txtSpeed = TextView(this).apply {
             text = "0"
             textSize = 16f 
             textAlignment = View.TEXT_ALIGNMENT_CENTER
-            setTextColor(android.graphics.Color.WHITE)
-            setBackgroundColor(android.graphics.Color.BLACK)
+            setTextColor(Color.WHITE)
+            setBackgroundColor(Color.BLACK)
             setPadding(30, 15, 30, 15)
             visibility = View.GONE
         }
-        val speedX = prefs.getFloat("speed_pos_x", 40f)
-        val speedY = prefs.getFloat("speed_pos_y", 40f)
         val speedContainer = FrameLayout(this).apply {
             addView(txtSpeed, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT))
         }
         val speedParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT).apply {
-            leftMargin = speedX.toInt()
-            topMargin = speedY.toInt()
+            leftMargin = prefs.getFloat("speed_pos_x", 40f).toInt()
+            topMargin = prefs.getFloat("speed_pos_y", 40f).toInt()
         }
         addContentView(speedContainer, speedParams)
 
@@ -126,24 +142,22 @@ class RouteActivity : AppCompatActivity() {
             }
         }
 
-        // 2. DOĞRULUK GÖSTERGESİ (Ayrı Sürüklenebilir)
+        // 2. DOĞRULUK GÖSTERGESİ (Sürüklenebilir)
         txtAccuracy = TextView(this).apply {
             text = "-"
             textSize = 16f
             textAlignment = View.TEXT_ALIGNMENT_CENTER
-            setTextColor(android.graphics.Color.WHITE)
-            setBackgroundColor(android.graphics.Color.BLACK)
+            setTextColor(Color.WHITE)
+            setBackgroundColor(Color.BLACK)
             setPadding(30, 15, 30, 15)
             visibility = View.GONE
         }
-        val accX = prefs.getFloat("acc_pos_x", 40f)
-        val accY = prefs.getFloat("acc_pos_y", 120f)
         val accContainer = FrameLayout(this).apply {
             addView(txtAccuracy, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT))
         }
         val accParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT).apply {
-            leftMargin = accX.toInt()
-            topMargin = accY.toInt()
+            leftMargin = prefs.getFloat("acc_pos_x", 40f).toInt()
+            topMargin = prefs.getFloat("acc_pos_y", 120f).toInt()
         }
         addContentView(accContainer, accParams)
 
@@ -163,9 +177,12 @@ class RouteActivity : AppCompatActivity() {
         map.setMultiTouchControls(true)
         map.setBuiltInZoomControls(false)
         map.setTilesScaledToDpi(true)
-        
         map.maxZoomLevel = 22.0
         map.setLayerType(View.LAYER_TYPE_HARDWARE, null)
+
+        routePolyline.outlinePaint.color = Color.parseColor("#FF8800")
+        routePolyline.outlinePaint.strokeWidth = 10f
+        map.overlays.add(routePolyline)
 
         val rotationOverlay = RotationGestureOverlay(map)
         rotationOverlay.isEnabled = true
@@ -173,13 +190,7 @@ class RouteActivity : AppCompatActivity() {
 
         createIcons()
 
-        val useGps = prefs.getBoolean("use_gps_satellite", true)
-        val useNetwork = prefs.getBoolean("use_network_gps", true)
-
         val provider = GpsMyLocationProvider(this)
-        if (useGps) provider.addLocationSource(LocationManager.GPS_PROVIDER)
-        if (useNetwork) provider.addLocationSource(LocationManager.NETWORK_PROVIDER)
-
         locationOverlay = MyLocationNewOverlay(provider, map)
         locationOverlay.setPersonIcon(dotBitmap)
         locationOverlay.setDirectionIcon(dotBitmap)
@@ -188,57 +199,37 @@ class RouteActivity : AppCompatActivity() {
         locationOverlay.enableMyLocation()
         map.overlays.add(locationOverlay)
 
-        // Sürüklenebilir Konum Butonu
+        // 3. KONUM BUTONU (Sürüklenebilir - 175x175)
         btnMyLocationCustom = ImageButton(this).apply {
             setImageResource(R.drawable.ic_location_pin)
             setBackgroundResource(R.drawable.bg_rounded_square)
             elevation = 8f
             setPadding(16, 16, 16, 16)
         }
-        val btnX = prefs.getFloat("btn_pos_x", (resources.displayMetrics.widthPixels - 200).toFloat())
-        val btnY = prefs.getFloat("btn_pos_y", (resources.displayMetrics.heightPixels - 350).toFloat())
-        
-        val btnParams = FrameLayout.LayoutParams(160, 160).apply {
-            leftMargin = btnX.toInt()
-            topMargin = btnY.toInt()
+        val btnParams = FrameLayout.LayoutParams(175, 175).apply {
+            leftMargin = prefs.getFloat("btn_pos_x", (resources.displayMetrics.widthPixels - 220).toFloat()).toInt()
+            topMargin = prefs.getFloat("btn_pos_y", (resources.displayMetrics.heightPixels - 380).toFloat()).toInt()
         }
         addContentView(btnMyLocationCustom, btnParams)
 
         var bDX = 0f
         var bDY = 0f
-        var startX = 0f
-        var startY = 0f
-        val clickThreshold = 10f
-
+        var bStartX = 0f
+        var bStartY = 0f
         btnMyLocationCustom.setOnTouchListener { view, event ->
             val isLocked = prefs.getBoolean("pref_layout_locked", true)
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
-                    if (!isLocked) {
-                        bDX = view.x - event.rawX
-                        bDY = view.y - event.rawY
-                    }
-                    startX = event.rawX
-                    startY = event.rawY
+                    if (!isLocked) { bDX = view.x - event.rawX; bDY = view.y - event.rawY }
+                    bStartX = event.rawX; bStartY = event.rawY
                     false
                 }
                 MotionEvent.ACTION_MOVE -> {
-                    if (!isLocked) {
-                        view.x = event.rawX + bDX
-                        view.y = event.rawY + bDY
-                        true
-                    } else {
-                        false
-                    }
+                    if (!isLocked) { view.x = event.rawX + bDX; view.y = event.rawY + bDY; true } else false
                 }
                 MotionEvent.ACTION_UP -> {
-                    if (!isLocked) {
-                        prefs.edit().putFloat("btn_pos_x", view.x).putFloat("btn_pos_y", view.y).apply()
-                    }
-                    val distance = Math.hypot((event.rawX - startX).toDouble(), (event.rawY - startY).toDouble()).toFloat()
-                    if (distance < clickThreshold) {
-                        view.performClick()
-                    }
+                    if (!isLocked) prefs.edit().putFloat("btn_pos_x", view.x).putFloat("btn_pos_y", view.y).apply()
+                    if (Math.hypot((event.rawX - bStartX).toDouble(), (event.rawY - bStartY).toDouble()) < 10f) view.performClick()
                     true
                 }
                 else -> false
@@ -250,12 +241,62 @@ class RouteActivity : AppCompatActivity() {
                 locationClickCount++
                 val zoom1 = prefs.getFloat("custom_zoom_1", 12.0f).toDouble()
                 val zoom2 = prefs.getFloat("custom_zoom_2", 18.0f).toDouble()
-                val targetZoom = if (locationClickCount % 2 == 1) zoom1 else zoom2
-                
                 map.controller.animateTo(locationOverlay.myLocation)
-                map.controller.setZoom(targetZoom)
+                map.controller.setZoom(if (locationClickCount % 2 == 1) zoom1 else zoom2)
             } else {
                 Toast.makeText(this, "Konum aranıyor...", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        // 4. ROTA KAYIT BUTONU (Sürüklenebilir - 175x175)
+        btnRecordRoute = ImageButton(this).apply {
+            setImageBitmap(playBitmap)
+            setBackgroundResource(R.drawable.bg_rounded_square)
+            elevation = 10f
+            setPadding(16, 16, 16, 16)
+        }
+        val recordX = prefs.getFloat("record_pos_x", 60f)
+        val recordY = prefs.getFloat("record_pos_y", 250f)
+        val recordParams = FrameLayout.LayoutParams(175, 175).apply {
+            leftMargin = recordX.toInt()
+            topMargin = recordY.toInt()
+        }
+        addContentView(btnRecordRoute, recordParams)
+
+        var rDX = 0f
+        var rDY = 0f
+        var rStartX = 0f
+        var rStartY = 0f
+        btnRecordRoute.setOnTouchListener { view, event ->
+            val isLocked = prefs.getBoolean("pref_layout_locked", true)
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    if (!isLocked) { rDX = view.x - event.rawX; rDY = view.y - event.rawY }
+                    rStartX = event.rawX; rStartY = event.rawY
+                    false
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    if (!isLocked) { view.x = event.rawX + rDX; view.y = event.rawY + rDY; true } else false
+                }
+                MotionEvent.ACTION_UP -> {
+                    if (!isLocked) prefs.edit().putFloat("record_pos_x", view.x).putFloat("record_pos_y", view.y).apply()
+                    if (Math.hypot((event.rawX - rStartX).toDouble(), (event.rawY - rStartY).toDouble()) < 10f) view.performClick()
+                    true
+                }
+                else -> false
+            }
+        }
+
+        btnRecordRoute.setOnClickListener {
+            isRecording = !isRecording
+            if (isRecording) {
+                routePoints.clear()
+                routePolyline.setPoints(routePoints)
+                btnRecordRoute.setImageBitmap(stopBitmap)
+                Toast.makeText(this, "Rota Kaydı Başlatıldı", Toast.LENGTH_SHORT).show()
+            } else {
+                btnRecordRoute.setImageBitmap(playBitmap)
+                Toast.makeText(this, "Rota Kaydı Durduruldu", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -263,37 +304,37 @@ class RouteActivity : AppCompatActivity() {
     private fun createIcons() {
         dotBitmap = Bitmap.createBitmap(75, 75, Bitmap.Config.ARGB_8888)
         val canvas1 = Canvas(dotBitmap)
-        val paintDot = android.graphics.Paint().apply {
-            color = android.graphics.Color.parseColor("#007AFF")
-            style = android.graphics.Paint.Style.FILL
-            isAntiAlias = true
-        }
+        val paintDot = Paint().apply { color = Color.parseColor("#007AFF"); style = Paint.Style.FILL; isAntiAlias = true }
         canvas1.drawCircle(37.5f, 37.5f, 33f, paintDot)
-        paintDot.style = android.graphics.Paint.Style.STROKE
-        paintDot.color = android.graphics.Color.WHITE
-        paintDot.strokeWidth = 6f
+        paintDot.style = Paint.Style.STROKE; paintDot.color = Color.WHITE; paintDot.strokeWidth = 6f
         canvas1.drawCircle(37.5f, 37.5f, 33f, paintDot)
 
         arrowBitmap = Bitmap.createBitmap(100, 100, Bitmap.Config.ARGB_8888)
         val canvas2 = Canvas(arrowBitmap)
-        val paintArrow = android.graphics.Paint().apply {
-            color = android.graphics.Color.parseColor("#007AFF")
-            style = android.graphics.Paint.Style.FILL
-            isAntiAlias = true
-        }
-        val path = android.graphics.Path().apply {
-            moveTo(50f, 5f)
-            lineTo(92f, 95f)
-            lineTo(50f, 72f)
-            lineTo(8f, 95f)
+        val paintArrow = Paint().apply { color = Color.parseColor("#007AFF"); style = Paint.Style.FILL; isAntiAlias = true }
+        val path = Path().apply { moveTo(50f, 5f); lineTo(92f, 95f); lineTo(50f, 72f); lineTo(8f, 95f); close() }
+        canvas2.drawPath(path, paintArrow)
+        paintArrow.style = Paint.Style.STROKE; paintArrow.color = Color.WHITE; paintArrow.strokeWidth = 6f
+        canvas2.drawPath(path, paintArrow)
+
+        playBitmap = Bitmap.createBitmap(128, 128, Bitmap.Config.ARGB_8888)
+        val canvasPlay = Canvas(playBitmap)
+        val paintBg = Paint().apply { color = Color.BLACK; style = Paint.Style.FILL; isAntiAlias = true }
+        canvasPlay.drawCircle(64f, 64f, 60f, paintBg)
+        val paintPlay = Paint().apply { color = Color.parseColor("#FF8800"); style = Paint.Style.FILL; isAntiAlias = true }
+        val playPath = Path().apply {
+            moveTo(48f, 36f)
+            lineTo(96f, 64f)
+            lineTo(48f, 92f)
             close()
         }
-        canvas2.drawPath(path, paintArrow)
-        
-        paintArrow.style = android.graphics.Paint.Style.STROKE
-        paintArrow.color = android.graphics.Color.WHITE
-        paintArrow.strokeWidth = 6f
-        canvas2.drawPath(path, paintArrow)
+        canvasPlay.drawPath(playPath, paintPlay)
+
+        stopBitmap = Bitmap.createBitmap(128, 128, Bitmap.Config.ARGB_8888)
+        val canvasStop = Canvas(stopBitmap)
+        canvasStop.drawCircle(64f, 64f, 60f, paintBg)
+        val paintStop = Paint().apply { color = Color.parseColor("#FF8800"); style = Paint.Style.FILL; isAntiAlias = true }
+        canvasStop.drawRect(40f, 40f, 88f, 88f, paintStop)
     }
 
     override fun onResume() {
@@ -301,14 +342,10 @@ class RouteActivity : AppCompatActivity() {
         map.onResume()
         val prefs = PreferenceManager.getDefaultSharedPreferences(this)
         
-        val showSpeed = prefs.getBoolean("pref_show_speed", false)
-        val showAcc = prefs.getBoolean("pref_show_accuracy", false)
-        
-        txtSpeed.visibility = if (showSpeed) View.VISIBLE else View.GONE
-        txtAccuracy.visibility = if (showAcc) View.VISIBLE else View.GONE
+        txtSpeed.visibility = if (prefs.getBoolean("pref_show_speed", false)) View.VISIBLE else View.GONE
+        txtAccuracy.visibility = if (prefs.getBoolean("pref_show_accuracy", false)) View.VISIBLE else View.GONE
 
-        val routeZoom = prefs.getFloat("zoom_route", 15.0f).toDouble()
-        map.controller.setZoom(routeZoom)
+        map.controller.setZoom(prefs.getFloat("zoom_route", 15.0f).toDouble())
 
         if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
             locationManager = getSystemService(LOCATION_SERVICE) as LocationManager
@@ -327,11 +364,9 @@ class RouteActivity : AppCompatActivity() {
         if (provider == "offline") {
             val mapFile = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "turkey.map")
             if (mapFile.exists()) {
-                val forgeSource = MapsForgeTileSource.createFromFiles(arrayOf(mapFile))
-                val forgeProvider = MapsForgeTileProvider(SimpleRegisterReceiver(this), forgeSource, null)
-                map.tileProvider = forgeProvider
+                map.tileProvider = MapsForgeTileProvider(SimpleRegisterReceiver(this), MapsForgeTileSource.createFromFiles(arrayOf(mapFile)), null)
             } else {
-                Toast.makeText(this, "turkey.map dosyası İndirilenler klasöründe bulunamadı!", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, "turkey.map dosyası bulunamadı!", Toast.LENGTH_LONG).show()
             }
         } else {
             if (map.tileProvider !is MapTileProviderBasic) {

@@ -2901,6 +2901,7 @@ drawable abc_textfield_search_material
 drawable abc_vector_test
 drawable avd_hide_password
 drawable avd_show_password
+drawable bg_circle_button
 drawable bg_rounded_square
 drawable bonuspack_bubble
 drawable btn_checkbox_checked_mtrl
@@ -2941,6 +2942,7 @@ drawable ic_mtrl_checked_circle
 drawable ic_mtrl_chip_checked_black
 drawable ic_mtrl_chip_checked_circle
 drawable ic_mtrl_chip_close_circle
+drawable ic_play_orange
 drawable ic_search_black_24
 drawable m3_appbar_background
 drawable m3_avd_hide_password
