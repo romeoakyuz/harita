@@ -1,0 +1,272 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="com.ornek.harita"
+4    android:versionCode="2"
+5    android:versionName="2.0.1" >
+6
+7    <uses-sdk
+8        android:minSdkVersion="24"
+9        android:targetSdkVersion="34" />
+10
+11    <uses-permission android:name="android.permission.INTERNET" />
+11-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:5:5-67
+11-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:5:22-64
+12    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+12-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:6:5-79
+12-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:6:22-76
+13    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+13-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:7:5-81
+13-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:7:22-78
+14    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+14-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:8:5-85
+14-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:8:22-82
+15    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+15-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:9:5-77
+15-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:9:22-74
+16    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+16-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:10:5-86
+16-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:10:22-83
+17    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+17-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:11:5-77
+17-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:11:22-74
+18    <uses-permission android:name="android.permission.WAKE_LOCK" />
+18-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:12:5-68
+18-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:12:22-65
+19    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+19-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:13:5-81
+19-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:13:22-78
+20    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+20-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:14:5-80
+20-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:14:22-77
+21    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
+21-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:15:5-82
+21-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:15:22-79
+22    <!-- OpenGL ES 3.0 required -->
+23    <uses-feature
+23-->[org.maplibre.gl:android-sdk:11.8.2] /data/data/com.termux/files/home/.gradle/caches/transforms-3/e2748f502011aeca8effe9c9620f7b06/transformed/jetified-android-sdk-11.8.2/AndroidManifest.xml:7:5-9:35
+24        android:glEsVersion="0x00030000"
+24-->[org.maplibre.gl:android-sdk:11.8.2] /data/data/com.termux/files/home/.gradle/caches/transforms-3/e2748f502011aeca8effe9c9620f7b06/transformed/jetified-android-sdk-11.8.2/AndroidManifest.xml:8:9-41
+25        android:required="true" />
+25-->[org.maplibre.gl:android-sdk:11.8.2] /data/data/com.termux/files/home/.gradle/caches/transforms-3/e2748f502011aeca8effe9c9620f7b06/transformed/jetified-android-sdk-11.8.2/AndroidManifest.xml:9:9-32
+26    <uses-feature
+26-->[org.maplibre.gl:android-sdk:11.8.2] /data/data/com.termux/files/home/.gradle/caches/transforms-3/e2748f502011aeca8effe9c9620f7b06/transformed/jetified-android-sdk-11.8.2/AndroidManifest.xml:10:5-12:36
+27        android:name="android.hardware.wifi"
+27-->[org.maplibre.gl:android-sdk:11.8.2] /data/data/com.termux/files/home/.gradle/caches/transforms-3/e2748f502011aeca8effe9c9620f7b06/transformed/jetified-android-sdk-11.8.2/AndroidManifest.xml:11:9-45
+28        android:required="false" />
+28-->[org.maplibre.gl:android-sdk:11.8.2] /data/data/com.termux/files/home/.gradle/caches/transforms-3/e2748f502011aeca8effe9c9620f7b06/transformed/jetified-android-sdk-11.8.2/AndroidManifest.xml:12:9-33
+29
+30    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+30-->[org.maplibre.gl:android-sdk:11.8.2] /data/data/com.termux/files/home/.gradle/caches/transforms-3/e2748f502011aeca8effe9c9620f7b06/transformed/jetified-android-sdk-11.8.2/AndroidManifest.xml:14:5-79
+30-->[org.maplibre.gl:android-sdk:11.8.2] /data/data/com.termux/files/home/.gradle/caches/transforms-3/e2748f502011aeca8effe9c9620f7b06/transformed/jetified-android-sdk-11.8.2/AndroidManifest.xml:14:22-76
+31    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+31-->[org.maplibre.gl:android-sdk:11.8.2] /data/data/com.termux/files/home/.gradle/caches/transforms-3/e2748f502011aeca8effe9c9620f7b06/transformed/jetified-android-sdk-11.8.2/AndroidManifest.xml:15:5-76
+31-->[org.maplibre.gl:android-sdk:11.8.2] /data/data/com.termux/files/home/.gradle/caches/transforms-3/e2748f502011aeca8effe9c9620f7b06/transformed/jetified-android-sdk-11.8.2/AndroidManifest.xml:15:22-73
+32
+33    <permission
+33-->[androidx.core:core:1.13.1] /data/data/com.termux/files/home/.gradle/caches/transforms-3/e7c2bfc810cd0f6a13ec3b9a3c4338a6/transformed/core-1.13.1/AndroidManifest.xml:22:5-24:47
+34        android:name="com.ornek.harita.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+34-->[androidx.core:core:1.13.1] /data/data/com.termux/files/home/.gradle/caches/transforms-3/e7c2bfc810cd0f6a13ec3b9a3c4338a6/transformed/core-1.13.1/AndroidManifest.xml:23:9-81
+35        android:protectionLevel="signature" />
+35-->[androidx.core:core:1.13.1] /data/data/com.termux/files/home/.gradle/caches/transforms-3/e7c2bfc810cd0f6a13ec3b9a3c4338a6/transformed/core-1.13.1/AndroidManifest.xml:24:9-44
+36
+37    <uses-permission android:name="com.ornek.harita.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
+37-->[androidx.core:core:1.13.1] /data/data/com.termux/files/home/.gradle/caches/transforms-3/e7c2bfc810cd0f6a13ec3b9a3c4338a6/transformed/core-1.13.1/AndroidManifest.xml:26:5-97
+37-->[androidx.core:core:1.13.1] /data/data/com.termux/files/home/.gradle/caches/transforms-3/e7c2bfc810cd0f6a13ec3b9a3c4338a6/transformed/core-1.13.1/AndroidManifest.xml:26:22-94
+38
+39    <supports-screens
+39-->[org.osmdroid:osmdroid-android:6.1.18] /data/data/com.termux/files/home/.gradle/caches/transforms-3/596a8f4a1dc26ff6a94160472a0c64eb/transformed/jetified-osmdroid-android-6.1.18/AndroidManifest.xml:9:5-12:40
+40        android:anyDensity="true"
+40-->[org.osmdroid:osmdroid-android:6.1.18] /data/data/com.termux/files/home/.gradle/caches/transforms-3/596a8f4a1dc26ff6a94160472a0c64eb/transformed/jetified-osmdroid-android-6.1.18/AndroidManifest.xml:10:9-34
+41        android:largeScreens="true"
+41-->[org.osmdroid:osmdroid-android:6.1.18] /data/data/com.termux/files/home/.gradle/caches/transforms-3/596a8f4a1dc26ff6a94160472a0c64eb/transformed/jetified-osmdroid-android-6.1.18/AndroidManifest.xml:11:9-36
+42        android:normalScreens="true" />
+42-->[org.osmdroid:osmdroid-android:6.1.18] /data/data/com.termux/files/home/.gradle/caches/transforms-3/596a8f4a1dc26ff6a94160472a0c64eb/transformed/jetified-osmdroid-android-6.1.18/AndroidManifest.xml:12:9-37
+43
+44    <uses-feature
+44-->[org.osmdroid:osmdroid-android:6.1.18] /data/data/com.termux/files/home/.gradle/caches/transforms-3/596a8f4a1dc26ff6a94160472a0c64eb/transformed/jetified-osmdroid-android-6.1.18/AndroidManifest.xml:14:5-16:36
+45        android:name="android.hardware.location.network"
+45-->[org.osmdroid:osmdroid-android:6.1.18] /data/data/com.termux/files/home/.gradle/caches/transforms-3/596a8f4a1dc26ff6a94160472a0c64eb/transformed/jetified-osmdroid-android-6.1.18/AndroidManifest.xml:15:9-57
+46        android:required="false" />
+46-->[org.osmdroid:osmdroid-android:6.1.18] /data/data/com.termux/files/home/.gradle/caches/transforms-3/596a8f4a1dc26ff6a94160472a0c64eb/transformed/jetified-osmdroid-android-6.1.18/AndroidManifest.xml:16:9-33
+47    <uses-feature
+47-->[org.osmdroid:osmdroid-android:6.1.18] /data/data/com.termux/files/home/.gradle/caches/transforms-3/596a8f4a1dc26ff6a94160472a0c64eb/transformed/jetified-osmdroid-android-6.1.18/AndroidManifest.xml:17:5-19:36
+48        android:name="android.hardware.location.gps"
+48-->[org.osmdroid:osmdroid-android:6.1.18] /data/data/com.termux/files/home/.gradle/caches/transforms-3/596a8f4a1dc26ff6a94160472a0c64eb/transformed/jetified-osmdroid-android-6.1.18/AndroidManifest.xml:18:9-53
+49        android:required="false" />
+49-->[org.osmdroid:osmdroid-android:6.1.18] /data/data/com.termux/files/home/.gradle/caches/transforms-3/596a8f4a1dc26ff6a94160472a0c64eb/transformed/jetified-osmdroid-android-6.1.18/AndroidManifest.xml:19:9-33
+50    <uses-feature
+50-->[org.osmdroid:osmdroid-android:6.1.18] /data/data/com.termux/files/home/.gradle/caches/transforms-3/596a8f4a1dc26ff6a94160472a0c64eb/transformed/jetified-osmdroid-android-6.1.18/AndroidManifest.xml:20:5-22:36
+51        android:name="android.hardware.telephony"
+51-->[org.osmdroid:osmdroid-android:6.1.18] /data/data/com.termux/files/home/.gradle/caches/transforms-3/596a8f4a1dc26ff6a94160472a0c64eb/transformed/jetified-osmdroid-android-6.1.18/AndroidManifest.xml:21:9-50
+52        android:required="false" />
+52-->[org.osmdroid:osmdroid-android:6.1.18] /data/data/com.termux/files/home/.gradle/caches/transforms-3/596a8f4a1dc26ff6a94160472a0c64eb/transformed/jetified-osmdroid-android-6.1.18/AndroidManifest.xml:22:9-33
+53
+54    <application
+54-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:17:5-52:19
+55        android:allowBackup="true"
+55-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:18:9-35
+56        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+56-->[androidx.core:core:1.13.1] /data/data/com.termux/files/home/.gradle/caches/transforms-3/e7c2bfc810cd0f6a13ec3b9a3c4338a6/transformed/core-1.13.1/AndroidManifest.xml:28:18-86
+57        android:debuggable="true"
+58        android:extractNativeLibs="false"
+59        android:icon="@drawable/ic_blue_dot"
+59-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:19:9-45
+60        android:label="Harita Uygulaması"
+60-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:20:9-42
+61        android:roundIcon="@drawable/ic_blue_dot"
+61-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:21:9-50
+62        android:supportsRtl="true"
+62-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:22:9-35
+63        android:theme="@style/Theme.AppCompat.DayNight.NoActionBar" >
+63-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:23:9-68
+64        <activity
+64-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:25:9-33:20
+65            android:name="com.ornek.harita.MainActivity"
+65-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:26:13-41
+66            android:exported="true"
+66-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:27:13-36
+67            android:launchMode="singleTop" >
+67-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:28:13-43
+68            <intent-filter>
+68-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:29:13-32:29
+69                <action android:name="android.intent.action.MAIN" />
+69-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:30:17-69
+69-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:30:25-66
+70
+71                <category android:name="android.intent.category.LAUNCHER" />
+71-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:31:17-77
+71-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:31:27-74
+72            </intent-filter>
+73        </activity>
+74        <activity
+74-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:35:9-82
+75            android:name="com.ornek.harita.RouteActivity"
+75-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:35:19-48
+76            android:launchMode="singleTop" />
+76-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:35:49-79
+77        <activity
+77-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:36:9-88
+78            android:name="com.ornek.harita.VectorRouteActivity"
+78-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:36:19-54
+79            android:launchMode="singleTop" />
+79-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:36:55-85
+80        <activity
+80-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:37:9-85
+81            android:name="com.ornek.harita.SettingsActivity"
+81-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:37:19-51
+82            android:launchMode="singleTop" />
+82-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:37:52-82
+83        <activity android:name="com.ornek.harita.MapProviderActivity" />
+83-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:38:9-57
+83-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:38:19-54
+84        <activity android:name="com.ornek.harita.ViewSettingsActivity" />
+84-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:39:9-58
+84-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:39:19-55
+85        <activity android:name="com.ornek.harita.ZoomActivity" />
+85-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:40:9-50
+85-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:40:19-47
+86        <activity android:name="com.ornek.harita.AppPermissionsActivity" />
+86-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:41:9-60
+86-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:41:19-57
+87        <activity android:name="com.ornek.harita.MapSettingsActivity" />
+87-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:42:9-57
+87-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:42:19-54
+88        <activity android:name="com.ornek.harita.GpsSettingsActivity" />
+88-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:43:9-57
+88-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:43:19-54
+89        <activity android:name="com.ornek.harita.ScreenToolsActivity" />
+89-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:44:9-57
+89-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:44:19-54
+90        <activity
+90-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:45:9-87
+91            android:name="com.ornek.harita.VectorMainActivity"
+91-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:45:19-53
+92            android:launchMode="singleTop" />
+92-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:45:54-84
+93        <activity android:name="com.ornek.harita.RouteRecordSettingsActivity" />
+93-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:46:9-65
+93-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:46:19-62
+94        <activity android:name="com.ornek.harita.RouteHistoryActivity" />
+94-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:47:9-58
+94-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:47:19-55
+95        <activity android:name="com.ornek.harita.RouteViewActivity" />
+95-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:48:9-55
+95-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:48:19-52
+96
+97        <service
+97-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:50:9-121
+98            android:name="com.ornek.harita.RouteRecordService"
+98-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:50:18-52
+99            android:exported="false"
+99-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:50:53-77
+100            android:foregroundServiceType="location" />
+100-->/storage/emulated/0/MGİT/Harita/app/src/main/AndroidManifest.xml:50:78-118
+101
+102        <provider
+102-->[androidx.emoji2:emoji2:1.2.0] /data/data/com.termux/files/home/.gradle/caches/transforms-3/12ff1c7a649cfc4a593549fe6042a0db/transformed/jetified-emoji2-1.2.0/AndroidManifest.xml:24:9-32:20
+103            android:name="androidx.startup.InitializationProvider"
+103-->[androidx.emoji2:emoji2:1.2.0] /data/data/com.termux/files/home/.gradle/caches/transforms-3/12ff1c7a649cfc4a593549fe6042a0db/transformed/jetified-emoji2-1.2.0/AndroidManifest.xml:25:13-67
+104            android:authorities="com.ornek.harita.androidx-startup"
+104-->[androidx.emoji2:emoji2:1.2.0] /data/data/com.termux/files/home/.gradle/caches/transforms-3/12ff1c7a649cfc4a593549fe6042a0db/transformed/jetified-emoji2-1.2.0/AndroidManifest.xml:26:13-68
+105            android:exported="false" >
+105-->[androidx.emoji2:emoji2:1.2.0] /data/data/com.termux/files/home/.gradle/caches/transforms-3/12ff1c7a649cfc4a593549fe6042a0db/transformed/jetified-emoji2-1.2.0/AndroidManifest.xml:27:13-37
+106            <meta-data
+106-->[androidx.emoji2:emoji2:1.2.0] /data/data/com.termux/files/home/.gradle/caches/transforms-3/12ff1c7a649cfc4a593549fe6042a0db/transformed/jetified-emoji2-1.2.0/AndroidManifest.xml:29:13-31:52
+107                android:name="androidx.emoji2.text.EmojiCompatInitializer"
+107-->[androidx.emoji2:emoji2:1.2.0] /data/data/com.termux/files/home/.gradle/caches/transforms-3/12ff1c7a649cfc4a593549fe6042a0db/transformed/jetified-emoji2-1.2.0/AndroidManifest.xml:30:17-75
+108                android:value="androidx.startup" />
+108-->[androidx.emoji2:emoji2:1.2.0] /data/data/com.termux/files/home/.gradle/caches/transforms-3/12ff1c7a649cfc4a593549fe6042a0db/transformed/jetified-emoji2-1.2.0/AndroidManifest.xml:31:17-49
+109            <meta-data
+109-->[androidx.lifecycle:lifecycle-process:2.6.2] /data/data/com.termux/files/home/.gradle/caches/transforms-3/b967e5aedbf664afbcc580ae34f72bd4/transformed/jetified-lifecycle-process-2.6.2/AndroidManifest.xml:29:13-31:52
+110                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
+110-->[androidx.lifecycle:lifecycle-process:2.6.2] /data/data/com.termux/files/home/.gradle/caches/transforms-3/b967e5aedbf664afbcc580ae34f72bd4/transformed/jetified-lifecycle-process-2.6.2/AndroidManifest.xml:30:17-78
+111                android:value="androidx.startup" />
+111-->[androidx.lifecycle:lifecycle-process:2.6.2] /data/data/com.termux/files/home/.gradle/caches/transforms-3/b967e5aedbf664afbcc580ae34f72bd4/transformed/jetified-lifecycle-process-2.6.2/AndroidManifest.xml:31:17-49
+112            <meta-data
+112-->[androidx.profileinstaller:profileinstaller:1.3.1] /data/data/com.termux/files/home/.gradle/caches/transforms-3/a0690e1f72ac332c5ca067f5d0f29635/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:29:13-31:52
+113                android:name="androidx.profileinstaller.ProfileInstallerInitializer"
+113-->[androidx.profileinstaller:profileinstaller:1.3.1] /data/data/com.termux/files/home/.gradle/caches/transforms-3/a0690e1f72ac332c5ca067f5d0f29635/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:30:17-85
+114                android:value="androidx.startup" />
+114-->[androidx.profileinstaller:profileinstaller:1.3.1] /data/data/com.termux/files/home/.gradle/caches/transforms-3/a0690e1f72ac332c5ca067f5d0f29635/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:31:17-49
+115        </provider>
+116
+117        <receiver
+117-->[androidx.profileinstaller:profileinstaller:1.3.1] /data/data/com.termux/files/home/.gradle/caches/transforms-3/a0690e1f72ac332c5ca067f5d0f29635/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:34:9-52:20
+118            android:name="androidx.profileinstaller.ProfileInstallReceiver"
+118-->[androidx.profileinstaller:profileinstaller:1.3.1] /data/data/com.termux/files/home/.gradle/caches/transforms-3/a0690e1f72ac332c5ca067f5d0f29635/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:35:13-76
+119            android:directBootAware="false"
+119-->[androidx.profileinstaller:profileinstaller:1.3.1] /data/data/com.termux/files/home/.gradle/caches/transforms-3/a0690e1f72ac332c5ca067f5d0f29635/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:36:13-44
+120            android:enabled="true"
+120-->[androidx.profileinstaller:profileinstaller:1.3.1] /data/data/com.termux/files/home/.gradle/caches/transforms-3/a0690e1f72ac332c5ca067f5d0f29635/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:37:13-35
+121            android:exported="true"
+121-->[androidx.profileinstaller:profileinstaller:1.3.1] /data/data/com.termux/files/home/.gradle/caches/transforms-3/a0690e1f72ac332c5ca067f5d0f29635/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:38:13-36
+122            android:permission="android.permission.DUMP" >
+122-->[androidx.profileinstaller:profileinstaller:1.3.1] /data/data/com.termux/files/home/.gradle/caches/transforms-3/a0690e1f72ac332c5ca067f5d0f29635/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:39:13-57
+123            <intent-filter>
+123-->[androidx.profileinstaller:profileinstaller:1.3.1] /data/data/com.termux/files/home/.gradle/caches/transforms-3/a0690e1f72ac332c5ca067f5d0f29635/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:40:13-42:29
+124                <action android:name="androidx.profileinstaller.action.INSTALL_PROFILE" />
+124-->[androidx.profileinstaller:profileinstaller:1.3.1] /data/data/com.termux/files/home/.gradle/caches/transforms-3/a0690e1f72ac332c5ca067f5d0f29635/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:41:17-91
+124-->[androidx.profileinstaller:profileinstaller:1.3.1] /data/data/com.termux/files/home/.gradle/caches/transforms-3/a0690e1f72ac332c5ca067f5d0f29635/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:41:25-88
+125            </intent-filter>
+126            <intent-filter>
+126-->[androidx.profileinstaller:profileinstaller:1.3.1] /data/data/com.termux/files/home/.gradle/caches/transforms-3/a0690e1f72ac332c5ca067f5d0f29635/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:43:13-45:29
+127                <action android:name="androidx.profileinstaller.action.SKIP_FILE" />
+127-->[androidx.profileinstaller:profileinstaller:1.3.1] /data/data/com.termux/files/home/.gradle/caches/transforms-3/a0690e1f72ac332c5ca067f5d0f29635/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:44:17-85
+127-->[androidx.profileinstaller:profileinstaller:1.3.1] /data/data/com.termux/files/home/.gradle/caches/transforms-3/a0690e1f72ac332c5ca067f5d0f29635/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:44:25-82
+128            </intent-filter>
+129            <intent-filter>
+129-->[androidx.profileinstaller:profileinstaller:1.3.1] /data/data/com.termux/files/home/.gradle/caches/transforms-3/a0690e1f72ac332c5ca067f5d0f29635/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:46:13-48:29
+130                <action android:name="androidx.profileinstaller.action.SAVE_PROFILE" />
+130-->[androidx.profileinstaller:profileinstaller:1.3.1] /data/data/com.termux/files/home/.gradle/caches/transforms-3/a0690e1f72ac332c5ca067f5d0f29635/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:47:17-88
+130-->[androidx.profileinstaller:profileinstaller:1.3.1] /data/data/com.termux/files/home/.gradle/caches/transforms-3/a0690e1f72ac332c5ca067f5d0f29635/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:47:25-85
+131            </intent-filter>
+132            <intent-filter>
+132-->[androidx.profileinstaller:profileinstaller:1.3.1] /data/data/com.termux/files/home/.gradle/caches/transforms-3/a0690e1f72ac332c5ca067f5d0f29635/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:49:13-51:29
+133                <action android:name="androidx.profileinstaller.action.BENCHMARK_OPERATION" />
+133-->[androidx.profileinstaller:profileinstaller:1.3.1] /data/data/com.termux/files/home/.gradle/caches/transforms-3/a0690e1f72ac332c5ca067f5d0f29635/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:50:17-95
+133-->[androidx.profileinstaller:profileinstaller:1.3.1] /data/data/com.termux/files/home/.gradle/caches/transforms-3/a0690e1f72ac332c5ca067f5d0f29635/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:50:25-92
+134            </intent-filter>
+135        </receiver>
+136    </application>
+137
+138</manifest>
